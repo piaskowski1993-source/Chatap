@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Chatap.App/Chatap.App.csproj" />
+    <Project Path="src/Chatap.Core/Chatap.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Chatap.Core.Tests/Chatap.Core.Tests.csproj" />
+  </Folder>
+</Solution>
