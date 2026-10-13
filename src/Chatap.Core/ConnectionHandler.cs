@@ -51,6 +51,7 @@ public sealed class ConnectionHandler
     public bool IsOutgoing { get; }
     public string RemoteEndPoint { get; }
     public Guid? PeerId { get; private set; }
+    public int? PeerVersion { get; private set; }
     public HandlerState State { get; private set; } = HandlerState.WaitingForHello;
     public CloseReason? ClosedBecause { get; private set; }
     public string? ClosedDetail { get; private set; }
@@ -157,6 +158,7 @@ public sealed class ConnectionHandler
 
             if (await ReadHelloAsync() is not HelloMessage hello)
                 return;
+            PeerVersion = hello.Version;
             if (hello.Version != Protocol.Version)
             {
                 Close(CloseReason.VersionMismatch, $"peer uses version {hello.Version}, this node uses version {Protocol.Version}");

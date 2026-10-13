@@ -1,22 +1,80 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Chatap.App.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Chatap.App.Views.MainWindow"
-        x:DataType="vm:MainViewModel"
+        x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="Chatap.App">
+        Title="Chatap"
+        Width="780" Height="580" MinWidth="520" MinHeight="380">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainViewModel />
-    </Design.DataContext>
+    <Window.Styles>
+        <!-- Your own messages are indented. -->
+        <Style Selector="StackPanel.mine">
+            <Setter Property="Margin" Value="60,0,0,0" />
+        </Style>
+    </Window.Styles>
 
-    <TextBox Text="{Binding Greeting}"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center" />
+    <DockPanel Margin="12">
 
+        <!-- Top: your address and the connect form -->
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
+            <SelectableTextBlock Text="{Binding OwnAddress}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Connect to:" VerticalAlignment="Center" />
+                <TextBox Text="{Binding ConnectHost}" PlaceholderText="IP address" Width="180" />
+                <TextBlock Text="port" VerticalAlignment="Center" />
+                <TextBox Text="{Binding ConnectPort}" PlaceholderText="port" Width="90" />
+                <Button Content="Connect" Command="{Binding ConnectCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Bottom: the status line -->
+        <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8,4"
+                BorderThickness="1" BorderBrush="Gray" CornerRadius="3">
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Middle: one tab for each conversation -->
+        <TabControl ItemsSource="{Binding Conversations}" SelectedItem="{Binding Selected}">
+            <TabControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ConversationViewModel">
+                    <TextBlock Text="{Binding Title}" />
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+
+            <TabControl.ContentTemplate>
+                <DataTemplate x:DataType="vm:ConversationViewModel">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,4"
+                                Content="Chat history"
+                                Command="{Binding ShowHistoryCommand}"
+                                IsVisible="{Binding CanShowHistory}" />
+
+                        <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Content="Send"
+                                    Command="{Binding SendCommand}" IsDefault="True" />
+                            <TextBox Text="{Binding Draft}" PlaceholderText="type a message …" />
+                        </DockPanel>
+
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{Binding Messages}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MessageViewModel">
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2"
+                                                    Classes.mine="{Binding FromMe}">
+                                            <TextBlock Text="{Binding Time}" Opacity="0.6" />
+                                            <TextBlock Text="{Binding Who}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" MaxWidth="480" />
+                                            <TextBlock Text="✗ not sent" Foreground="Red" IsVisible="{Binding NotSent}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+
+    </DockPanel>
 </Window>

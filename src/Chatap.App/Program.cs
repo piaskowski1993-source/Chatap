@@ -17,16 +17,16 @@ sealed class Program
         Guid identity = IdentityStore.LoadOrCreate(dataFolder);
 
         var log = new LogWriter(dataFolder);
-        // Until step 8 shows it in the window, the message goes to the terminal.
+        // The window shows log and store failures too; the terminal keeps a copy.
         log.LogFailed += error => Console.Error.WriteLine($"Chatap continues without a log: {error.Message}");
         log.Log($"started, identity {identity}, data folder {dataFolder}");
 
         var store = new ConversationStore(dataFolder);
         store.StoreFailed += error => Console.Error.WriteLine($"Chatap continues without saving messages: {error.Message}");
 
-        // The window uses the node and the store from step 8.
+        // The window subscribes to the node and then starts it (App.axaml.cs).
         var node = new Node(identity, log, store);
-        node.Start();
+        App.Services = new AppServices(identity, node, store, log);
 
         try
         {
