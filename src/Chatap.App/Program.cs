@@ -13,11 +13,25 @@ sealed class Program
     public static void Main(string[] args)
     {
         // Composition root: prepare the Core parts before the window opens.
-        // The node uses dataFolder and identity from step 5.
+        // The node uses dataFolder, identity and log from step 5.
         string dataFolder = DataFolder.FromArgs(args);
         Guid identity = IdentityStore.LoadOrCreate(dataFolder);
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        var log = new LogWriter(dataFolder);
+        // Until step 8 shows it in the window, the message goes to the terminal.
+        log.LogFailed += error => Console.Error.WriteLine($"Chatap continues without a log: {error.Message}");
+        log.Log($"started, identity {identity}, data folder {dataFolder}");
+
+        try
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        finally
+        {
+            // Graceful shutdown: write the remaining log lines before the process ends.
+            log.Log("stopped");
+            log.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
