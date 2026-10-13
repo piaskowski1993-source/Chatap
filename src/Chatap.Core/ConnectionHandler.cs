@@ -6,6 +6,13 @@ public enum HandlerState { WaitingForHello, Ready, Closed }
 
 public enum CloseReason { PeerClosed, HelloTimeout, VersionMismatch, ProtocolError, Replaced, ConnectionLost, LocalClose }
 
+// TCP keepalive: after Idle without traffic the OS sends a probe, then one every Interval;
+// after Probes unanswered probes the connection counts as lost (about 90 s with the defaults).
+public sealed record KeepAliveSettings(TimeSpan Idle, TimeSpan Interval, int Probes)
+{
+    public static readonly KeepAliveSettings Default = new(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(10), 3);
+}
+
 // Owns one conversation: its socket, the hello handshake, the receive loop and sending.
 // States: WaitingForHello → Ready → Closed (or WaitingForHello → Closed when the handshake fails).
 public sealed class ConnectionHandler
@@ -21,9 +28,13 @@ public sealed class ConnectionHandler
     readonly List<string> _waiting = [];
     readonly CancellationTokenSource _closing = new();
 
+    // How long a graceful close waits for the peer's FIN before the socket closes anyway.
+    static readonly TimeSpan DrainTime = TimeSpan.FromSeconds(1);
+
     internal ConnectionHandler(TcpClient client, bool isOutgoing, Guid myId, LogWriter log,
-        TimeSpan helloTimeout, Action<ConnectionHandler> onHello)
+        TimeSpan helloTimeout, KeepAliveSettings keepAlive, Action<ConnectionHandler> onHello)
     {
+        EnableKeepAlive(client.Client, keepAlive);
         _client = client;
         _stream = client.GetStream();
         _myId = myId;
@@ -40,6 +51,7 @@ public sealed class ConnectionHandler
     public Guid? PeerId { get; private set; }
     public HandlerState State { get; private set; } = HandlerState.WaitingForHello;
     public CloseReason? ClosedBecause { get; private set; }
+    public string? ClosedDetail { get; private set; }
 
     // All events are raised on a background thread.
     public event Action<ConnectionHandler>? Ready;
@@ -70,7 +82,7 @@ public sealed class ConnectionHandler
         }
         catch (Exception e) when (e is IOException or ObjectDisposedException)
         {
-            Close(CloseReason.ConnectionLost, e.Message);
+            Close(CloseReason.ConnectionLost, Describe(e));
             return false;
         }
         finally
@@ -94,8 +106,12 @@ public sealed class ConnectionHandler
         }
 
         ClosedBecause = reason;
+        ClosedDetail = detail;
         _closing.Cancel();
-        _client.Dispose();
+        if (reason == CloseReason.PeerClosed)
+            _client.Dispose(); // the peer's FIN has already arrived
+        else
+            BeginGracefulClose();
 
         if (PeerId is Guid peer)
             _log.Log(peer, $"closed: {reason} ({detail})");
@@ -152,12 +168,74 @@ public sealed class ConnectionHandler
         }
         catch (Exception e) when (e is IOException or SocketException)
         {
-            Close(CloseReason.ConnectionLost, e.Message);
+            Close(CloseReason.ConnectionLost, Describe(e));
         }
         catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException)
         {
             // This node closed the conversation; Close has already run.
         }
+        finally
+        {
+            await DrainAsync();
+        }
+    }
+
+    // Half-close: send our FIN now. DrainAsync discards what still arrives until the peer's FIN.
+    // After at most DrainTime the socket closes anyway.
+    // A plain close with unread bytes in the receive buffer would send RST instead of FIN.
+    void BeginGracefulClose()
+    {
+        try
+        {
+            _client.Client.Shutdown(SocketShutdown.Send);
+        }
+        catch (Exception e) when (e is SocketException or ObjectDisposedException)
+        {
+            // The connection is already broken.
+        }
+        _ = Task.Delay(DrainTime).ContinueWith(_ => _client.Dispose());
+    }
+
+    // Reads and discards bytes until the peer closes or the socket is closed.
+    async Task DrainAsync()
+    {
+        byte[] discard = new byte[4096];
+        try
+        {
+            while (await _stream.ReadAsync(discard) > 0) { }
+        }
+        catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException)
+        {
+        }
+        _client.Dispose();
+    }
+
+    static string Describe(Exception e) =>
+        (e as SocketException ?? e.InnerException as SocketException)?.SocketErrorCode switch
+        {
+            SocketError.ConnectionReset => "connection reset (RST)",
+            SocketError.TimedOut => "no answer to keepalive",
+            _ => e.Message,
+        };
+
+    static void EnableKeepAlive(Socket socket, KeepAliveSettings keepAlive)
+    {
+        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+        socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, (int)keepAlive.Idle.TotalSeconds);
+        socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, (int)keepAlive.Interval.TotalSeconds);
+        socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, keepAlive.Probes);
+    }
+
+    // For tests: the keepalive values as the OS reports them for this socket.
+    internal (bool On, KeepAliveSettings Values) ReadKeepAlive()
+    {
+        Socket socket = _client.Client;
+        int Get(SocketOptionLevel level, SocketOptionName name) => (int)socket.GetSocketOption(level, name)!;
+        return (Get(SocketOptionLevel.Socket, SocketOptionName.KeepAlive) != 0,
+            new KeepAliveSettings(
+                TimeSpan.FromSeconds(Get(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime)),
+                TimeSpan.FromSeconds(Get(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval)),
+                Get(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount)));
     }
 
     // Waits for the peer's hello, at most _helloTimeout. Closes the conversation and returns null on failure.

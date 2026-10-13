@@ -12,16 +12,18 @@ public sealed class Node : IDisposable
     readonly TcpListener _listener = new(IPAddress.Any, 0);
     readonly LogWriter _log;
     readonly TimeSpan _helloTimeout;
+    readonly KeepAliveSettings _keepAlive;
     readonly CancellationTokenSource _stopping = new();
     readonly object _conversationsLock = new();
     readonly Dictionary<Guid, ConnectionHandler> _conversations = [];
 
-    // helloTimeout is for tests; the real program uses 10 seconds.
-    public Node(Guid identity, LogWriter log, TimeSpan? helloTimeout = null)
+    // helloTimeout and keepAlive are for tests; the real program uses 10 s and 60/10/3.
+    public Node(Guid identity, LogWriter log, TimeSpan? helloTimeout = null, KeepAliveSettings? keepAlive = null)
     {
         Identity = identity;
         _log = log;
         _helloTimeout = helloTimeout ?? DefaultHelloTimeout;
+        _keepAlive = keepAlive ?? KeepAliveSettings.Default;
     }
 
     public Guid Identity { get; }
@@ -94,7 +96,7 @@ public sealed class Node : IDisposable
 
     ConnectionHandler Begin(TcpClient client, bool isOutgoing)
     {
-        var handler = new ConnectionHandler(client, isOutgoing, Identity, _log, _helloTimeout, OnHello);
+        var handler = new ConnectionHandler(client, isOutgoing, Identity, _log, _helloTimeout, _keepAlive, OnHello);
         ConversationStarted?.Invoke(handler);
         _ = handler.RunAsync();
         return handler;

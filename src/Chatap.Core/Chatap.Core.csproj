@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The tests may use members marked internal, for example ReadKeepAlive. -->
+    <InternalsVisibleTo Include="Chatap.Core.Tests" />
+  </ItemGroup>
+
 </Project>

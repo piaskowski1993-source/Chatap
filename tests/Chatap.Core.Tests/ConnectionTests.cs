@@ -7,9 +7,9 @@ namespace Chatap.Core.Tests;
 public class ConnectionTests
 {
     static readonly TimeSpan ShortHelloTimeout = TimeSpan.FromMilliseconds(200);
-    static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
 
-    static Node NewNode(TimeSpan? helloTimeout = null)
+    internal static Node NewNode(TimeSpan? helloTimeout = null)
     {
         var log = new LogWriter(Path.Combine(Path.GetTempPath(), "chatap-test-" + Guid.NewGuid()));
         var node = new Node(Guid.NewGuid(), log, helloTimeout ?? ShortHelloTimeout);
@@ -18,13 +18,13 @@ public class ConnectionTests
     }
 
     // Completes when the event occurs. Continuations run on another thread, never inside the handler.
-    static TaskCompletionSource<T> Signal<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal static TaskCompletionSource<T> Signal<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // A handler with its events watched from the start, before its hello can arrive.
-    sealed record Watched(ConnectionHandler Handler, Task<ConnectionHandler> Ready, Task<CloseReason> Closed);
+    internal sealed record Watched(ConnectionHandler Handler, Task<ConnectionHandler> Ready, Task<CloseReason> Closed);
 
     // The next handler that the node starts (incoming or outgoing).
-    static Task<Watched> NextConversation(Node node)
+    internal static Task<Watched> NextConversation(Node node)
     {
         var started = Signal<Watched>();
         Action<ConnectionHandler>? watch = null;
@@ -37,14 +37,14 @@ public class ConnectionTests
         return started.Task;
     }
 
-    static Task<ConnectionHandler> ReadyOf(ConnectionHandler handler)
+    internal static Task<ConnectionHandler> ReadyOf(ConnectionHandler handler)
     {
         var ready = Signal<ConnectionHandler>();
         handler.Ready += h => ready.TrySetResult(h);
         return ready.Task;
     }
 
-    static Task<CloseReason> ClosedOf(ConnectionHandler handler)
+    internal static Task<CloseReason> ClosedOf(ConnectionHandler handler)
     {
         var closed = Signal<CloseReason>();
         handler.Disconnected += r => closed.TrySetResult(r);
