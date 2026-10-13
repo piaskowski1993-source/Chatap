@@ -13,7 +13,6 @@ sealed class Program
     public static void Main(string[] args)
     {
         // Composition root: prepare the Core parts before the window opens.
-        // The node uses dataFolder, identity and log from step 5.
         string dataFolder = DataFolder.FromArgs(args);
         Guid identity = IdentityStore.LoadOrCreate(dataFolder);
 
@@ -22,12 +21,17 @@ sealed class Program
         log.LogFailed += error => Console.Error.WriteLine($"Chatap continues without a log: {error.Message}");
         log.Log($"started, identity {identity}, data folder {dataFolder}");
 
+        // The window uses the node from step 8.
+        var node = new Node(identity, log);
+        node.Start();
+
         try
         {
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         finally
         {
+            node.Dispose();
             // Graceful shutdown: write the remaining log lines before the process ends.
             log.Log("stopped");
             log.DisposeAsync().AsTask().GetAwaiter().GetResult();
