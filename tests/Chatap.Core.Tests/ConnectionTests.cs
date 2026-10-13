@@ -11,8 +11,8 @@ public class ConnectionTests
 
     internal static Node NewNode(TimeSpan? helloTimeout = null)
     {
-        var log = new LogWriter(Path.Combine(Path.GetTempPath(), "chatap-test-" + Guid.NewGuid()));
-        var node = new Node(Guid.NewGuid(), log, helloTimeout ?? ShortHelloTimeout);
+        string folder = Path.Combine(Path.GetTempPath(), "chatap-test-" + Guid.NewGuid());
+        var node = new Node(Guid.NewGuid(), new LogWriter(folder), new ConversationStore(folder), helloTimeout ?? ShortHelloTimeout);
         node.Start();
         return node;
     }

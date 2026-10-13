@@ -21,17 +21,18 @@ public sealed class ConnectionHandler
     readonly NetworkStream _stream;
     readonly Guid _myId;
     readonly LogWriter _log;
+    readonly ConversationStore _store;
     readonly TimeSpan _helloTimeout;
     readonly Action<ConnectionHandler> _onHello;
     readonly SemaphoreSlim _writeLock = new(1, 1);
     readonly object _stateLock = new();
-    readonly List<string> _waiting = [];
+    readonly List<(string Text, DateTimeOffset Clicked)> _waiting = [];
     readonly CancellationTokenSource _closing = new();
 
     // How long a graceful close waits for the peer's FIN before the socket closes anyway.
     static readonly TimeSpan DrainTime = TimeSpan.FromSeconds(1);
 
-    internal ConnectionHandler(TcpClient client, bool isOutgoing, Guid myId, LogWriter log,
+    internal ConnectionHandler(TcpClient client, bool isOutgoing, Guid myId, LogWriter log, ConversationStore store,
         TimeSpan helloTimeout, KeepAliveSettings keepAlive, Action<ConnectionHandler> onHello)
     {
         EnableKeepAlive(client.Client, keepAlive);
@@ -39,6 +40,7 @@ public sealed class ConnectionHandler
         _stream = client.GetStream();
         _myId = myId;
         _log = log;
+        _store = store;
         _helloTimeout = helloTimeout;
         _onHello = onHello;
         IsOutgoing = isOutgoing;
@@ -59,29 +61,34 @@ public sealed class ConnectionHandler
     public event Action<CloseReason>? Disconnected;
     public event Action<IReadOnlyList<string>>? NotSent;
 
-    // Before Ready the text waits in a queue; it is sent right after the peer's hello.
+    // Ready: the text is saved at once (the "click"), then sent.
+    // Before Ready it waits in a queue, keeps its click time, and is saved and sent right after the peer's hello.
     // Returns false when the conversation is closed and the text was not sent.
     public async Task<bool> SendAsync(string text)
     {
+        var clicked = DateTimeOffset.UtcNow;
         lock (_stateLock)
         {
             if (State == HandlerState.Closed)
                 return false;
             if (State == HandlerState.WaitingForHello)
             {
-                _waiting.Add(text);
+                _waiting.Add((text, clicked));
                 return true;
             }
         }
 
+        var saved = _store.Save(PeerId!.Value, _myId, text, clicked);
         await _writeLock.WaitAsync();
         try
         {
-            await Codec.WriteAsync(_stream, new ChatMessage(text, DateTimeOffset.UtcNow));
+            await Codec.WriteAsync(_stream, new ChatMessage(text, clicked));
             return true;
         }
         catch (Exception e) when (e is IOException or ObjectDisposedException)
         {
+            _store.MarkNotSent(PeerId.Value, saved.Id);
+            NotSent?.Invoke([text]);
             Close(CloseReason.ConnectionLost, Describe(e));
             return false;
         }
@@ -95,7 +102,7 @@ public sealed class ConnectionHandler
 
     internal void Close(CloseReason reason, string detail)
     {
-        List<string> notSent;
+        List<(string Text, DateTimeOffset Clicked)> notSent;
         lock (_stateLock)
         {
             if (State == HandlerState.Closed)
@@ -119,8 +126,26 @@ public sealed class ConnectionHandler
             _log.Log($"connection {RemoteEndPoint} closed: {reason} ({detail})");
 
         if (notSent.Count > 0)
-            NotSent?.Invoke(notSent);
+            ReportNotSent(notSent);
         Disconnected?.Invoke(reason);
+    }
+
+    // Texts from the queue that will never be sent. With a known peer they are saved and marked
+    // as not sent; without a hello there is no conversation file, so only the node log keeps a note.
+    void ReportNotSent(List<(string Text, DateTimeOffset Clicked)> texts)
+    {
+        if (texts.Count == 0)
+            return;
+        if (PeerId is Guid peer)
+        {
+            foreach (var (text, clicked) in texts)
+                _store.MarkNotSent(peer, _store.Save(peer, _myId, text, clicked).Id);
+        }
+        else
+        {
+            _log.Log($"connection {RemoteEndPoint}: {texts.Count} message(s) not sent; no hello, so no conversation file");
+        }
+        NotSent?.Invoke([.. texts.Select(t => t.Text)]);
     }
 
     // Started by Node for each new connection. Runs until the conversation closes.
@@ -141,6 +166,8 @@ public sealed class ConnectionHandler
             PeerId = hello.Id;
             _onHello(this);
             await BecomeReadyAsync();
+            if (State == HandlerState.Closed)
+                return;
 
             while (true)
             {
@@ -155,6 +182,7 @@ public sealed class ConnectionHandler
                     Close(CloseReason.ProtocolError, "a second hello after the handshake");
                     return;
                 }
+                _store.Save(PeerId.Value, PeerId.Value, chat.Text, chat.Sent);
                 MessageReceived?.Invoke(chat);
             }
         }
@@ -274,7 +302,7 @@ public sealed class ConnectionHandler
         await _writeLock.WaitAsync();
         try
         {
-            List<string> early;
+            List<(string Text, DateTimeOffset Clicked)> early;
             lock (_stateLock)
             {
                 if (State == HandlerState.Closed)
@@ -287,8 +315,24 @@ public sealed class ConnectionHandler
             _log.Log(PeerId!.Value, $"hello from {RemoteEndPoint}: ready");
             Ready?.Invoke(this);
 
-            foreach (string text in early)
-                await Codec.WriteAsync(_stream, new ChatMessage(text, DateTimeOffset.UtcNow));
+            for (int i = 0; i < early.Count; i++)
+            {
+                var (text, clicked) = early[i];
+                var saved = _store.Save(PeerId.Value, _myId, text, clicked);
+                try
+                {
+                    await Codec.WriteAsync(_stream, new ChatMessage(text, clicked));
+                }
+                catch (Exception e) when (e is IOException or ObjectDisposedException)
+                {
+                    // This text and all later ones in the queue were not sent.
+                    _store.MarkNotSent(PeerId.Value, saved.Id);
+                    ReportNotSent(early[(i + 1)..]);
+                    NotSent?.Invoke([text]);
+                    Close(CloseReason.ConnectionLost, Describe(e));
+                    return;
+                }
+            }
         }
         finally
         {

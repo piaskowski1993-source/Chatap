@@ -18,15 +18,18 @@ public sealed class Node : IDisposable
     readonly Dictionary<Guid, ConnectionHandler> _conversations = [];
 
     // helloTimeout and keepAlive are for tests; the real program uses 10 s and 60/10/3.
-    public Node(Guid identity, LogWriter log, TimeSpan? helloTimeout = null, KeepAliveSettings? keepAlive = null)
+    public Node(Guid identity, LogWriter log, ConversationStore store,
+        TimeSpan? helloTimeout = null, KeepAliveSettings? keepAlive = null)
     {
         Identity = identity;
         _log = log;
+        Store = store;
         _helloTimeout = helloTimeout ?? DefaultHelloTimeout;
         _keepAlive = keepAlive ?? KeepAliveSettings.Default;
     }
 
     public Guid Identity { get; }
+    public ConversationStore Store { get; }
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
 
     // Raised for incoming and outgoing connections, before the handler sends its hello.
@@ -96,7 +99,7 @@ public sealed class Node : IDisposable
 
     ConnectionHandler Begin(TcpClient client, bool isOutgoing)
     {
-        var handler = new ConnectionHandler(client, isOutgoing, Identity, _log, _helloTimeout, _keepAlive, OnHello);
+        var handler = new ConnectionHandler(client, isOutgoing, Identity, _log, Store, _helloTimeout, _keepAlive, OnHello);
         ConversationStarted?.Invoke(handler);
         _ = handler.RunAsync();
         return handler;
