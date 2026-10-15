@@ -14,9 +14,6 @@ namespace Chatap.App.ViewModels;
 // The handler raises its events on a background thread; every reaction is posted to the UI thread first.
 public partial class ConversationViewModel : ViewModelBase
 {
-    // Below the 64 KB protocol limit even when every character needs 3 bytes in UTF-8.
-    const int MaxTextLength = 20_000;
-
     readonly ConnectionHandler _handler;
     readonly ConversationStore _store;
     readonly MainWindowViewModel _main;
@@ -45,26 +42,40 @@ public partial class ConversationViewModel : ViewModelBase
     [ObservableProperty]
     private string _title;
 
+    // Each change of the draft updates the byte counter and whether Send is possible.
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     private string _draft = "";
+
+    // The live counter under the text box. It uses the codec's own measurement, so it counts the real bytes.
+    [ObservableProperty]
+    private string _sizeText = $"0 / {Protocol.MaxMessageBytes:N0} bytes";
+
+    [ObservableProperty]
+    private bool _isTooLong;
+
+    partial void OnDraftChanged(string value)
+    {
+        string text = value.Trim();
+        int bytes = text.Length == 0 ? 0 : Codec.ChatMessageSize(text);
+        IsTooLong = bytes > Protocol.MaxMessageBytes;
+        SizeText = IsTooLong
+            ? $"{bytes:N0} / {Protocol.MaxMessageBytes:N0} bytes: too long, shorten the message"
+            : $"{bytes:N0} / {Protocol.MaxMessageBytes:N0} bytes";
+    }
+
+    bool CanSend() => Draft.Trim().Length > 0 && !IsTooLong;
 
     [ObservableProperty]
     private bool _canShowHistory;
 
     public bool IsReady => _handler.State == HandlerState.Ready;
 
-    [RelayCommand]
+    // The Send button is disabled when the draft is empty or too long (your decision A).
+    [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()
     {
         string text = Draft.Trim();
-        if (text.Length == 0)
-            return;
-        if (text.Length > MaxTextLength)
-        {
-            _main.Status = $"The message is too long: {text.Length} characters. The limit is {MaxTextLength}.";
-            return;
-        }
-
         Draft = "";
         var line = new MessageViewModel(true, text, DateTimeOffset.UtcNow);
         Messages.Add(line);

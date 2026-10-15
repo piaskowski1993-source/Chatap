@@ -12,6 +12,11 @@
         <Style Selector="StackPanel.mine">
             <Setter Property="Margin" Value="60,0,0,0" />
         </Style>
+        <!-- The byte counter turns red above the limit. -->
+        <Style Selector="TextBlock.toolong">
+            <Setter Property="Foreground" Value="Red" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
     </Window.Styles>
 
     <DockPanel Margin="12">
@@ -53,7 +58,11 @@
                         <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                             <Button DockPanel.Dock="Right" Margin="8,0,0,0" Content="Send"
                                     Command="{Binding SendCommand}" IsDefault="True" />
-                            <TextBox Text="{Binding Draft}" PlaceholderText="type a message …" />
+                            <StackPanel Spacing="2">
+                                <TextBox Text="{Binding Draft}" PlaceholderText="type a message …" />
+                                <TextBlock Text="{Binding SizeText}" FontSize="11" Opacity="0.7"
+                                           Classes.toolong="{Binding IsTooLong}" />
+                            </StackPanel>
                         </DockPanel>
 
                         <ScrollViewer>

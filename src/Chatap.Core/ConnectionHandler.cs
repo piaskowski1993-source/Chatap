@@ -64,9 +64,17 @@ public sealed class ConnectionHandler
 
     // Ready: the text is saved at once (the "click"), then sent.
     // Before Ready it waits in a queue, keeps its click time, and is saved and sent right after the peer's hello.
-    // Returns false when the conversation is closed and the text was not sent.
+    // Returns false when the text was not sent: the conversation is closed, or the text is too long.
     public async Task<bool> SendAsync(string text)
     {
+        // A text that is too long is never saved or sent. The connection stays open: the peer did nothing wrong.
+        if (!Codec.FitsInOneMessage(text))
+        {
+            LogLine($"not sent: message of {Codec.ChatMessageSize(text)} bytes is above the limit of {Protocol.MaxMessageBytes}");
+            NotSent?.Invoke([text]);
+            return false;
+        }
+
         var clicked = DateTimeOffset.UtcNow;
         lock (_stateLock)
         {
@@ -93,10 +101,27 @@ public sealed class ConnectionHandler
             Close(CloseReason.ConnectionLost, Describe(e));
             return false;
         }
+        catch (ProtocolException e)
+        {
+            // Safety net: our own message broke the protocol. Do not crash, and keep the connection open.
+            _store.MarkNotSent(PeerId.Value, saved.Id);
+            LogLine($"not sent: {e.Message}");
+            NotSent?.Invoke([text]);
+            return false;
+        }
         finally
         {
             _writeLock.Release();
         }
+    }
+
+    // A log line for this conversation: in the peer's file when the peer is known, else in node.txt.
+    void LogLine(string text)
+    {
+        if (PeerId is Guid peer)
+            _log.Log(peer, text);
+        else
+            _log.Log($"connection {RemoteEndPoint}: {text}");
     }
 
     public void Close() => Close(CloseReason.LocalClose, "closed by this node");
