@@ -826,6 +826,447 @@ const NODE_NOW = {
   stop: () => ['Up. The program is running.'],
 };
 
+// Dialogue of the stations inside the ConnectionHandler.
+const HANDLER_DIALOGUE = {
+  fromNode: {
+    greet: [['R', 'Hello. What came in here?'], ['P', 'A connected socket, from the Node. One socket, one conversation, one handler.']],
+    twin: [['P', 'The other handler got the socket of the other end.']],
+    topics: [
+      { id: 'first', ask: 'What happens to the socket first?', lines: [
+        ['P', 'Keepalive is turned on for it, before anything else. Then the hello starts.'] ] },
+    ],
+  },
+  states: {
+    greet: [['R', 'Hello. Three lamps?'], ['P', 'Three states: WaitingForHello, Ready, Closed. Only one lamp is on.']],
+    twin: [['P', 'The other handler has its own lamps. They do not always change at the same moment.']],
+    topics: [
+      { id: 'order', ask: 'In which order do they go?', lines: [
+        ['P', 'WaitingForHello, then Ready, then Closed. Or straight from WaitingForHello to Closed, if the hello fails.'],
+        ['P', 'Never back. A closed handler stays closed.'] ] },
+      { id: 'lock', ask: 'Who may change you?', lines: [
+        ['P', 'Anyone who holds the state lock. Sending and closing can happen on different threads, so they must take turns.'] ] },
+    ],
+  },
+  keepalive: {
+    greet: [['R', 'Hello. You pump.'], ['P', 'I am keepalive. When the line is quiet, the operating system checks if the friend is still there.']],
+    twin: [['P', 'The other end has a pump too.']],
+    topics: [
+      { id: 'numbers', ask: 'How does it work?', lines: [
+        ['P', 'After 60 quiet seconds, a probe. Then one every 10 seconds.'],
+        ['P', 'After 3 probes with no answer, the connection counts as lost. About 90 seconds.'] ] },
+      { id: 'why', ask: 'Why do you need that?', lines: [
+        ['P', 'If the friend\'s computer dies, no FIN ever comes. Without me, the read would wait forever.'] ] },
+    ],
+  },
+  logSlot: {
+    greet: [['R', 'Hello. A slot.'], ['P', 'Lines for the LogWriter go in here.']],
+    twin: [['P', 'The other handler writes to its own LogWriter.']],
+    topics: [
+      { id: 'what', ask: 'Which lines?', lines: [
+        ['P', '"hello from …: ready", "closed: …", and "not sent: …".'] ] },
+      { id: 'chat', ask: 'Do you log every chat message?', lines: [
+        ['P', 'No. The messages go to the store, not to the log.'] ] },
+    ],
+  },
+  fromWindow: {
+    greet: [['R', 'Hello. Who calls you?'], ['P', 'The Window. When the human presses Send, SendAsync starts here.']],
+    twin: [['P', 'The other Window calls the other handler.']],
+    topics: [
+      { id: 'answer', ask: 'What do you tell the Window?', lines: [
+        ['P', 'True if the text went out, or waits for the hello. False if it was not sent.'] ] },
+    ],
+  },
+  sizeGate: {
+    greet: [['R', 'Hello. You measure?'], ['P', 'Every text, before anything else. Too long means: never saved, never sent.']],
+    twin: [['P', 'The other gate measures with the same limit.']],
+    topics: [
+      { id: 'stay', ask: 'Is the connection closed then?', lines: [
+        ['P', 'No. The friend did nothing wrong. The connection stays open, and the text is marked: not sent.'] ] },
+    ],
+  },
+  helloOut: {
+    greet: [['R', 'Hello. You say hello?'], ['P', 'First thing, always. My ID and my version, before any chat.']],
+    twin: [['P', 'The other handler sends its hello at the same time. Both sides say it.']],
+    topics: [
+      { id: 'what', ask: 'What is in the hello?', lines: [
+        ['P', 'The node ID, a GUID. And the protocol version: 1.'] ] },
+    ],
+  },
+  waiting: {
+    greet: [['R', 'Hello. An empty shelf?'], ['P', 'Texts sent before the hello wait on me.']],
+    twin: [['P', 'The other handler has a shelf too.']],
+    topics: [
+      { id: 'keep', ask: 'What do you keep with each text?', lines: [
+        ['P', 'The time of the click. Then the order and the time stay true.'] ] },
+      { id: 'then', ask: 'And when the hello comes?', lines: [
+        ['P', 'Then each waiting text is saved and sent, in order, before any new one.'],
+        ['P', 'If the conversation closes first, they are marked: not sent.'] ] },
+    ],
+  },
+  save: {
+    greet: [['R', 'Hello. You stamp?'], ['P', 'I save every message to the store.']],
+    twin: [['P', 'The other handler saves the same messages, from its side.']],
+    topics: [
+      { id: 'when', ask: 'When do you save?', lines: [
+        ['P', 'A message going out: at once, before it is sent. A message coming in: right after it is read.'] ] },
+      { id: 'fail', ask: 'And if sending fails after you saved it?', after: 'when', lines: [
+        ['P', 'Then a "not sent" mark is saved too. The first line stays: the store only adds.'] ] },
+    ],
+  },
+  lock: {
+    greet: [['R', 'Hello. A turnstile?'], ['P', 'The write lock. Only one write at a time goes through me.']],
+    twin: [['P', 'The other handler has its own lock.']],
+    topics: [
+      { id: 'why', ask: 'Why one at a time?', lines: [
+        ['P', 'If two writes ran at once, the bytes of two frames could mix in the stream.'] ] },
+      { id: 'hello', ask: 'Does the hello go through you too?', lines: [
+        ['P', 'Yes. And the waiting texts go through while I am held, so a new text cannot overtake them.'] ] },
+    ],
+  },
+  codec: {
+    greet: [['R', 'Hello. A double door?'], ['P', 'The Codec\'s door. Messages go out at the top, and come in at the bottom.']],
+    twin: [['P', 'The other handler uses the same Codec.']],
+    topics: [
+      { id: 'bytes', ask: 'Does the handler make the bytes?', lines: [
+        ['P', 'No. The Codec makes the frames and reads them. The handler only gives and takes whole messages.'] ] },
+    ],
+  },
+  loop: {
+    greet: [['R', 'Hello. You wait?'], ['P', 'I am the receive loop. I wait for the next message, again and again.']],
+    twin: [['P', 'The other loop reads the other way.']],
+    topics: [
+      { id: 'block', ask: 'Do you block a thread while you wait?', lines: [
+        ['P', 'No. I await. The thread is free while nothing comes.'] ] },
+      { id: 'null', ask: 'What if the Codec says: no more messages?', lines: [
+        ['P', 'That is the friend\'s FIN. I close: PeerClosed.'] ] },
+      { id: 'second', ask: 'What if a second hello comes?', lines: [
+        ['P', 'That is against the protocol. I close: ProtocolError.'] ] },
+    ],
+  },
+  helloCheck: {
+    greet: [['R', 'Hello. You have a clock and a ruler.'], ['P', 'I check the friend\'s hello. In time, and the right version.']],
+    twin: [['P', 'The other handler checks our hello the same way.']],
+    topics: [
+      { id: 'time', ask: 'How long do you wait?', lines: [
+        ['P', '10 seconds. No hello in time: I close, HelloTimeout.'] ] },
+      { id: 'version', ask: 'And the version?', lines: [
+        ['P', 'It must be the same. A different version: I close, VersionMismatch, and the human gets a clear message.'] ] },
+      { id: 'first', ask: 'What if the first message is a chat?', lines: [
+        ['P', 'Then it is not a hello. I close: ProtocolError.'] ] },
+      { id: 'ok', ask: 'And when all is well?', lines: [
+        ['P', 'The friend\'s ID is known. The Node writes it in its friends book, and the state turns to Ready.'] ] },
+    ],
+  },
+  events: {
+    greet: [['R', 'Hello. Four bells?'], ['P', 'Ready, MessageReceived, Disconnected, NotSent. The tab listens to them.']],
+    twin: [['P', 'The other handler rings for the other tab.']],
+    topics: [
+      { id: 'thread', ask: 'On which thread do you ring?', lines: [
+        ['P', 'On a background thread. That is why the Window posts everything to its UI thread first.'] ] },
+    ],
+  },
+  toWindow: {
+    greet: [['R', 'Hello. Where does this go?'], ['P', 'Up to the Window. Messages that came in leave here.']],
+    twin: [['P', 'The other handler sends to the other Window.']],
+    topics: [],
+  },
+  toStore: {
+    greet: [['R', 'Hello. Another chute.'], ['P', 'To the ConversationStore. Saved messages go down me.']],
+    twin: [['P', 'The other handler has its own store chute.']],
+    topics: [],
+  },
+  closeDesk: {
+    greet: [['R', 'Hello. You look serious.'], ['P', 'I close conversations. Only one time each.']],
+    twin: [['P', 'The other handler has a close desk too.']],
+    topics: [
+      { id: 'reasons', ask: 'Why can a conversation close?', lines: [
+        ['P', 'PeerClosed, HelloTimeout, VersionMismatch, ProtocolError, Replaced, ConnectionLost, LocalClose.'] ] },
+      { id: 'how', ask: 'How do you close?', lines: [
+        ['P', 'I send our FIN: a half-close. Then I read and throw away what still comes, at most 1 second.'],
+        ['P', 'Then the socket closes. A plain close with unread bytes would send RST instead of FIN.'] ] },
+      { id: 'after', ask: 'What else do you do?', lines: [
+        ['P', 'A line for the log, "not sent" marks for waiting texts, and the Disconnected bell.'] ] },
+    ],
+  },
+  socket: {
+    greet: [['R', 'Hello. You are the end of the pipe.'], ['P', 'The TCP socket. Bytes, FIN and keepalive probes all pass me.']],
+    twin: [['P', 'The other socket is the other end of the same connection.']],
+    topics: [],
+  },
+};
+const HANDLER_NOW = {
+  fromNode: n => [N[n].handlerAlive ? 'A socket is here.' : 'Waiting for a socket.'],
+  states: n => [`The lamp says: ${N[n].handlerState || 'no handler'}.`],
+  keepalive: n => [N[n].handlerAlive ? 'Pumping. The line is alive.' : 'Off. No socket.'],
+  logSlot: () => ['Waiting for a line.'],
+  fromWindow: n => [N[n].typing && N[n].tab ? `The human is typing: ${N[n].typing}` : 'Waiting for Send.'],
+  sizeGate: () => ['Open.'],
+  helloOut: n => [N[n].handlerState === 'WaitingForHello' ? 'I said hello. Waiting for the friend.' : 'My hello is said.'],
+  waiting: () => ['Empty.'],
+  save: n => [`${N[n].storeLines} messages saved so far.`],
+  lock: n => [handlerRoom[n].lockUntil > simTime ? 'Held. One write is going through.' : 'Free.'],
+  codec: () => ['Open both ways.'],
+  loop: n => [N[n].handlerState === 'Ready' ? 'Waiting for the next message.' : 'Not running.'],
+  helloCheck: n => [N[n].handlerState === 'WaitingForHello' ? 'Waiting for the hello. The clock is running.' : 'Done.'],
+  events: () => ['Quiet.'],
+  toWindow: () => ['Empty.'],
+  toStore: () => ['Empty.'],
+  closeDesk: n => [handlerRoom[n].lastClose ? `Last close: ${handlerRoom[n].lastClose}.` : 'Nothing closed yet.'],
+  socket: n => [tcp === 'up' ? 'Connected.' : 'No connection.'],
+};
+
+// Dialogue of the stations inside the ConversationStore.
+const STORE_DIALOGUE = {
+  gate: {
+    greet: [['R', 'Hello. A gate?'], ['P', 'The closing gate. I am open while the program runs.']],
+    twin: [['P', 'Every store has a gate like me.']],
+    topics: [
+      { id: 'close', ask: 'What happens at closing time?', lines: [
+        ['P', 'No new lines come in. Every line already inside is still written. Then the lights go out.'] ] },
+    ],
+  },
+  slots: {
+    greet: [['R', 'Hello. A mouth in the wall?'], ['P', 'The save slot. The handlers drop messages into me.']],
+    twin: [['P', 'The other store has slots like me.']],
+    topics: [
+      { id: 'wait', ask: 'Does the handler wait for the disk?', lines: [
+        ['P', 'No. Save returns at once. The line waits on the belt; the handler goes back to the conversation.'] ] },
+    ],
+  },
+  idStamp: {
+    greet: [['R', 'Hello. You stamp numbers?'], ['P', 'Every saved message gets a new Id from me. A GUID.']],
+    twin: [['P', 'The other store makes its own Ids. They are only known in their own node.']],
+    topics: [
+      { id: 'why', ask: 'What is the Id for?', lines: [
+        ['P', 'The handler keeps it. If the message is not sent after all, it can point at exactly this message.'],
+        ['P', 'A text is not enough: the same text can be sent many times.'] ] },
+    ],
+  },
+  press: {
+    greet: [['R', 'Hello. What do you press?'], ['P', 'Messages into one line of JSON: id, from, text, sent.']],
+    twin: [['P', 'My twin presses the same shape.']],
+    topics: [
+      { id: 'one', ask: 'Why only one line?', lines: [
+        ['P', 'The file has one JSON object on each line: JSON Lines. So a new message is just a new line at the end.'] ] },
+    ],
+  },
+  belt: {
+    greet: [['R', 'Hello. A belt again.'], ['P', 'Lines wait on me until the arm takes them.']],
+    twin: [['P', 'The other belt carries the other node\'s lines.']],
+    topics: [
+      { id: 'end', ask: 'Do you get full?', lines: [
+        ['P', 'No. I have no end. That is why Save never waits.'] ] },
+    ],
+  },
+  arm: {
+    greet: [['R', 'Hello. One arm, like in the LogWriter?'], ['P', 'The same design. One writer, one line at a time, in order.']],
+    twin: [['P', 'The other store has one arm too.']],
+    topics: [
+      { id: 'why', ask: 'Why only one?', lines: [
+        ['P', 'Handlers save at any moment, on different threads. With one writer, two lines can never mix.'] ] },
+    ],
+  },
+  chooser: {
+    greet: [['R', 'Hello. You choose?'], ['P', 'The file. Each line goes to the file of its friend.']],
+    twin: [['P', 'My twin chooses files in the other node.']],
+    topics: [
+      { id: 'name', ask: 'What is the file called?', lines: [
+        ['P', 'conversations/<the friend\'s ID>.jsonl. One file for each friend.'] ] },
+      { id: 'safe', ask: 'Can a friend choose another folder?', after: 'name', lines: [
+        ['P', 'No. The name is a GUID: only hex digits and dashes. A name like "../../something" is impossible.'] ] },
+    ],
+  },
+  shelf: {
+    greet: [['R', 'Hello. A big frame.'], ['P', 'The conversations folder. All the friends\' files stand here.']],
+    twin: [['P', 'The other node has its own folder.']],
+    topics: [
+      { id: 'known', ask: 'Who are the known friends?', lines: [
+        ['P', 'Every file whose name is a friend\'s ID. Other files are ignored.'] ] },
+    ],
+  },
+  file: {
+    greet: [['R', 'Hello. You are a long list.'], ['P', 'I am one friend\'s file. Every message with them, one line each.']],
+    twin: [['P', 'The other node has a file for the same talk, named after us.']],
+    topics: [
+      { id: 'change', ask: 'Are your lines ever changed?', lines: [
+        ['P', 'Never. New lines only go at the end. Nothing is changed or deleted: append-only.'] ] },
+      { id: 'crash', ask: 'What if the program crashes while writing?', lines: [
+        ['P', 'Only the newest line can be broken. All the old lines are safe.'] ] },
+    ],
+  },
+  marker: {
+    greet: [['R', 'Hello. A red pen?'], ['P', 'I mark messages that were not sent.']],
+    twin: [['P', 'The other store has a marker too.']],
+    topics: [
+      { id: 'how', ask: 'How do you mark one?', lines: [
+        ['P', 'I add a second line: {"notSent": the message\'s Id}. The first line stays as it is.'] ] },
+    ],
+  },
+  lamp: {
+    greet: [['R', 'Hello. A dark lamp.'], ['P', 'Dark means all is well.']],
+    twin: [['P', 'The other lamp is dark too, I hope.']],
+    topics: [
+      { id: 'when', ask: 'When do you light up?', lines: [
+        ['P', 'When writing fails, for example a full disk. One time. The status line says: Chatap continues without saving messages.'],
+        ['P', 'The chat goes on. Lines still leave the belt, into the shredder, so the belt never grows forever.'] ] },
+    ],
+  },
+  reader: {
+    greet: [['R', 'Hello. You read?'], ['P', 'The history reader. When the human presses Chat history, I read one friend\'s file.']],
+    twin: [['P', 'The other reader reads the other node\'s files.']],
+    topics: [
+      { id: 'broken', ask: 'What about a broken line?', lines: [
+        ['P', 'I skip it and read the rest.'] ] },
+      { id: 'marks', ask: 'How do you join the marks?', lines: [
+        ['P', 'I read all the lines first. A mark comes later in the file than its message.'],
+        ['P', 'So only at the end do I know which messages were not sent.'] ] },
+      { id: 'queue', ask: 'Do you see the newest lines?', lines: [
+        ['P', 'Not the ones still on the belt. Only what is already in the file.'] ] },
+    ],
+  },
+};
+const STORE_NOW = {
+  gate: () => ['Open. The program is running.'],
+  slots: n => [`${N[n].storeLines} messages came in so far.`],
+  idStamp: n => [storeRoom[n].lastId ? `Last Id: ${storeRoom[n].lastId}….` : 'No Id yet.'],
+  press: () => ['Waiting for a message.'],
+  belt: n => [`${storeRoom[n].items.length} on me.`],
+  arm: () => ['Ready.'],
+  chooser: n => [`Everything goes to ${INFO[other(n)].id.slice(0, 8)}….jsonl. There is one friend.`],
+  shelf: () => ['Holding the conversations folder.'],
+  file: n => [`${storeRoom[n].lines.length} lines in me.`],
+  marker: () => ['Nothing to mark. All was sent.'],
+  lamp: () => ['Dark. All is well.'],
+  reader: () => ['Waiting. Nobody pressed Chat history.'],
+};
+
+// Dialogue of the stations inside the Codec.
+const CODEC_DIALOGUE = {
+  fromHandler: {
+    greet: [['R', 'Hello. What comes in?'], ['P', 'Whole messages from the handler: a hello or a chat.']],
+    twin: [['P', 'The same Codec code runs in the other node.']],
+    topics: [],
+  },
+  json: {
+    greet: [['R', 'Hello. You press?'], ['P', 'Messages into JSON text, in UTF-8 bytes.']],
+    twin: [['P', 'My twin makes the same JSON.']],
+    topics: [
+      { id: 'type', ask: 'What comes first?', lines: [
+        ['P', 'The "type": "hello" or "chat". Then the rest.'] ] },
+      { id: 'oe', ask: 'How much does an ø cost?', lines: [
+        ['P', 'Six bytes. The JSON library writes it as \\u00f8. An a costs one.'] ] },
+    ],
+  },
+  limit: {
+    greet: [['R', 'Hello. A gate?'], ['P', 'The limit gate. 65,536 bytes of JSON, no more.']],
+    twin: [['P', 'The other side has the same limit. That is why we check it here.']],
+    topics: [
+      { id: 'over', ask: 'What if a message is too big?', lines: [
+        ['P', 'I refuse it with a ProtocolException. It is never sent, because the friend would reject it.'] ] },
+    ],
+  },
+  stamp: {
+    greet: [['R', 'Hello. Four boxes?'], ['P', 'Four bytes: the length of the JSON.']],
+    twin: [['P', 'My twin reads what I write.']],
+    topics: [
+      { id: 'order', ask: 'In which order?', lines: [
+        ['P', 'Big-endian: the most significant byte first. 70 bytes is 00 00 00 46.'] ] },
+      { id: 'why', ask: 'Why say the length first?', lines: [
+        ['P', 'TCP is one long stream with no edges. The reader counts the bytes to know where a message ends.'] ] },
+    ],
+  },
+  frame: {
+    greet: [['R', 'Hello. You glue?'], ['P', 'The length and the JSON into one block: one frame.']],
+    twin: [['P', 'Frames from the other node look the same.']],
+    topics: [
+      { id: 'one', ask: 'Why one block?', lines: [
+        ['P', 'So the frame goes out with one write.'] ] },
+    ],
+  },
+  toSocket: {
+    greet: [['R', 'Hello. Where to?'], ['P', 'Into the stream, and down to the socket.']],
+    twin: [['P', 'The other end is the other node\'s Codec.']],
+    topics: [],
+  },
+  fromSocket: {
+    greet: [['R', 'Hello. Bytes are dripping.'], ['P', 'They come in any sizes. One read can give half a message, or two.']],
+    twin: [['P', 'The other node gets drips too.']],
+    topics: [
+      { id: 'pause', ask: 'Can a pause show where a message ends?', lines: [
+        ['P', 'No. TCP removes the timing. Two sends can arrive as one read. Only counting works.'] ] },
+    ],
+  },
+  prefix: {
+    greet: [['R', 'Hello. You count to four?'], ['P', 'Every message starts with four length bytes. I collect them.']],
+    twin: [['P', 'My twin counts in the other node.']],
+    topics: [
+      { id: 'zero', ask: 'What if the first read gives 0 bytes?', lines: [
+        ['P', 'The friend closed, between two messages. A normal end: I give back null.'] ] },
+      { id: 'middle', ask: 'And if it ends in the middle?', lines: [
+        ['P', 'Then part of a message is lost. EndOfStreamException.'] ] },
+    ],
+  },
+  check: {
+    greet: [['R', 'Hello. You look suspicious.'], ['P', 'I check the length, before any memory is reserved.']],
+    twin: [['P', 'My twin checks too. Nobody trusts a stranger\'s number.']],
+    topics: [
+      { id: 'big', ask: 'What if the length says 3 GB?', lines: [
+        ['P', 'Refused at once: ProtocolException. A false number must not make us reserve gigabytes.'],
+        ['P', 'A negative number is refused too.'] ] },
+    ],
+  },
+  exact: {
+    greet: [['R', 'Hello. You are patient.'], ['P', 'I read exactly the number of bytes the prefix said. However many reads it takes.']],
+    twin: [['P', 'The other reader is just as patient.']],
+    topics: [],
+  },
+  unjson: {
+    greet: [['R', 'Hello. You unpack?'], ['P', 'JSON back into a message. The "type" tells me: hello or chat.']],
+    twin: [['P', 'My twin unpacks the other way.']],
+    topics: [
+      { id: 'bad', ask: 'What if the JSON is bad?', lines: [
+        ['P', 'Bad JSON, no type, or an unknown type: ProtocolException.'] ] },
+    ],
+  },
+  toHandler: {
+    greet: [['R', 'Hello. The end?'], ['P', 'The whole message goes back to the handler from here.']],
+    twin: [['P', 'The other node\'s handler gets its messages the same way.']],
+    topics: [],
+  },
+  stream: {
+    greet: [['R', 'Hello. A sign?'], ['P', 'It says: any stream. The Codec owns no socket.']],
+    twin: [['P', 'The same sign hangs in the other Codec.']],
+    topics: [
+      { id: 'test', ask: 'Why no socket?', lines: [
+        ['P', 'The Codec works on any stream: a network stream, or a test stream full of made-up bytes.'] ] },
+    ],
+  },
+  errors: {
+    greet: [['R', 'Hello. A desk full of forms?'], ['P', 'Three results that are not a message: null, EndOfStreamException, ProtocolException.']],
+    twin: [['P', 'The other Codec has the same three forms.']],
+    topics: [
+      { id: 'who', ask: 'Does the Codec close the connection?', lines: [
+        ['P', 'No. The Codec does not close and does not write the log. It only reports. The handler decides.'] ] },
+    ],
+  },
+};
+const CODEC_NOW = {
+  fromHandler: () => ['Waiting for a message.'],
+  json: n => [codecRoom[n].lastJson ? `Last: ${codecRoom[n].lastJson}` : 'Nothing pressed yet.'],
+  limit: n => [codecRoom[n].lastOut ? `Last one: ${codecRoom[n].lastOut} bytes. Allowed.` : 'Nothing measured yet.'],
+  stamp: n => [codecRoom[n].lastOut ? `Last prefix: ${hex4(codecRoom[n].lastOut)}.` : 'No prefix yet.'],
+  frame: () => ['Ready.'],
+  toSocket: () => ['Open.'],
+  fromSocket: () => [tcp === 'up' ? 'Listening to the stream.' : 'Dry. No connection.'],
+  prefix: n => [codecRoom[n].lastIn ? `Last prefix: ${hex4(codecRoom[n].lastIn)}.` : 'Nothing counted yet.'],
+  check: () => ['All lengths so far were allowed.'],
+  exact: n => [codecRoom[n].lastIn ? `Last: ${codecRoom[n].lastIn} bytes.` : 'Nothing read yet.'],
+  unjson: () => ['Ready.'],
+  toHandler: () => ['Empty.'],
+  stream: () => ['Hanging on the wall.'],
+  errors: () => ['No forms used. All is well.'],
+};
+
 // Live answers of the Window stations to "What are you doing right now?"
 const WIN_NOW = {
   address: n => [`Showing ${INFO[n].ip} : ${INFO[n].port}.`],
@@ -903,6 +1344,75 @@ const QUIZZES = {
       'So the Window can listen to the handler first and miss nothing', 'So the hello is sent faster', 'So the hello is written to the log', 'Because the friend needs the bell'] },
     { q: 'The same friend connects again. What does the Node do?', a: [
       'The newest connection wins, and the old one is closed', 'It refuses the new connection', 'It keeps both connections', 'It asks the human which one to keep'] },
+  ],
+  handler: [
+    { q: 'What does a handler send first, before any chat?', a: [
+      'Its own hello: the node ID and the version', 'The first chat message', 'A FIN', 'Nothing: it waits for the friend'] },
+    { q: "How long does a handler wait for the friend's hello?", a: [
+      '10 seconds, then it closes the conversation', 'Forever', '60 seconds, like keepalive', 'Until the human closes the tab'] },
+    { q: "The friend's hello has a different version. What happens?", a: [
+      'The conversation closes, and the human gets a clear message', 'They chat anyway', 'The handler updates the friend', 'The version is ignored'] },
+    { q: 'The human sends a text before the hello has arrived. What happens to it?', a: [
+      'It waits with its click time, and is saved and sent right after the hello', 'It is thrown away',
+      'It is sent at once, before the hello', 'The Send button refuses it'] },
+    { q: 'Why does the handler have a write lock?', a: [
+      'So only one write goes out at a time, and frames never mix', 'To stop the friend from writing', 'To make the disk faster', 'To lock the Window'] },
+    { q: 'When is a chat message that goes out saved?', a: [
+      'At once, before it is sent', 'Only after the friend answers', 'Only when the program closes', 'Never: only incoming messages are saved'] },
+    { q: 'A text is too long for one message. What does the handler do?', a: [
+      'It never saves or sends it, marks it not sent, and keeps the connection open', 'It closes the connection',
+      'It cuts the text in two', 'It sends it anyway'] },
+    { q: "The Codec says there are no more messages (the friend's FIN). What does the receive loop do?", a: [
+      'It closes the conversation: PeerClosed', 'It waits 10 seconds and reads again', 'It sends a hello again', 'It starts a new connection'] },
+    { q: 'On which thread does the handler raise its events, like MessageReceived?', a: [
+      'A background thread, so the Window posts them to its UI thread', 'The UI thread', 'The Codec thread', 'A new thread for every message'] },
+    { q: 'This node closes a conversation. What does the handler send?', a: [
+      'A FIN (half-close). It reads what still comes for at most 1 s, then closes the socket', 'An RST', 'A "bye" chat message', 'Nothing'] },
+  ],
+  store: [
+    { q: 'The handler calls Save. Does it wait for the disk?', a: [
+      'No. Save returns at once, and the line waits on the belt', 'Yes, until the line is written', 'Yes, for 1 second', 'Only for the first message'] },
+    { q: 'What does Save give back to the handler?', a: [
+      'The saved message with a new Id, so it can be marked not sent later', 'Nothing', 'The whole history', 'The file name'] },
+    { q: 'Where are the messages with one friend kept?', a: [
+      "In one file for that friend: conversations/<the friend's ID>.jsonl", 'In node.txt', 'In one file for all friends', 'Only in memory'] },
+    { q: 'What is the format of a conversation file?', a: [
+      'One JSON object on each line (JSON Lines)', 'One big JSON array', 'Plain text, one word per line', 'Binary frames with a length prefix'] },
+    { q: 'Are lines in a conversation file ever changed or deleted?', a: [
+      'Never. New lines are only added at the end', 'Yes, when a message is not sent', 'Yes, at midnight', 'Yes, when the file gets too long'] },
+    { q: 'A saved message turns out not to be sent. How is that recorded?', a: [
+      'A second line is added: {"notSent": the message\'s Id}', 'The first line is changed', 'The first line is deleted', 'Nothing is recorded'] },
+    { q: 'Why does the history reader read all the lines before it joins the marks?', a: [
+      'A mark comes later in the file than its message', 'To read faster', 'Because the file is sorted by text', 'Because marks are in another file'] },
+    { q: 'The history reader finds a broken line, for example after a crash. What does it do?', a: [
+      'It skips that line and reads the rest', 'It stops and shows nothing', 'It deletes the file', 'It repairs the line'] },
+    { q: "Why is the file name the friend's GUID?", a: [
+      'It has only hex digits and dashes, so a friend cannot point it at another folder', 'GUIDs are shorter than names', 'The friend chose it', 'GUIDs sort by time'] },
+    { q: 'Writing fails, for example because the disk is full. What happens?', a: [
+      'The store stops saving, the Window says Chatap continues without saving, and the chat goes on',
+      'The chat stops', 'The store tries again forever', 'The program closes'] },
+  ],
+  codec: [
+    { q: 'What are the first 4 bytes of a frame?', a: [
+      'The length of the JSON that follows, big-endian', 'The message type', 'The time the message was sent', "The friend's port"] },
+    { q: 'Why does a frame start with its length?', a: [
+      'TCP has no message edges, so the reader counts bytes to know where a message ends', 'To make the message shorter', 'To encrypt the message', 'Because JSON needs it'] },
+    { q: 'How many bytes does an ø cost in the JSON?', a: [
+      'Six (\\u00f8)', 'One', 'Two', 'Four'] },
+    { q: 'A message is more than 65,536 bytes of JSON. What does the Codec do when sending?', a: [
+      'It refuses it with a ProtocolException, so it is never sent', 'It sends it in two frames', 'It cuts the end off', 'It sends it anyway'] },
+    { q: 'The first read of a new message gives 0 bytes. What does the Codec return?', a: [
+      'null: the friend closed between two messages, a normal end', 'An empty message', 'A ProtocolException', 'It waits and reads again'] },
+    { q: 'The connection ends in the middle of a message. What happens?', a: [
+      'EndOfStreamException', 'null', 'The half message is given to the handler', 'The Codec waits for the rest forever'] },
+    { q: 'The length prefix says 3 GB. What does the Codec do?', a: [
+      'It refuses it before reserving any memory', 'It reserves 3 GB and reads', 'It reads only the first 64 KB', 'It asks the friend again'] },
+    { q: 'One read gives only part of a message. What does the Codec do?', a: [
+      'It reads again until it has exactly the number of bytes from the prefix', 'It gives back the part', 'It throws away the part', 'It waits for a pause'] },
+    { q: 'Which field tells the Codec if a message is a hello or a chat?', a: [
+      '"type"', '"text"', '"id"', '"sent"'] },
+    { q: 'A message breaks the protocol. Does the Codec close the connection?', a: [
+      'No. It throws an error, and the handler decides', 'Yes, it closes the socket', 'Yes, and it writes the log', 'It sends an error message to the friend'] },
   ],
   log: [
     { q: 'Who drops papers into the mail slots of the LogWriter?', a: [
@@ -1156,10 +1666,11 @@ function* typeInto(n, text) {
 function* hello(x) {
   const y = other(x);
   const len = jsonBytes({ type: 'hello', id: INFO[x].id, version: 1 });
+  handlerHelloOut(x);
   yield send([`${x}.handler`, `${x}.codec`, `${y}.codec`, `${y}.handler`], 'hello', { at: {
-    1: { say: `frame: ${hex4(len)} + ${len} B`, fn: () => { N[x].lastFrame = len; } },
-    2: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; } },
-    3: { say: 'hello v1 ✓ → Ready', fn: () => { N[y].handlerState = 'Ready'; nodeBookIn(y); spawn(logLine(y, 'handler', `hello from ${endpoint(x)}: ready`, true)); } },
+    1: { say: `frame: ${hex4(len)} + ${len} B`, fn: () => { N[x].lastFrame = len; codecOut(x, 'hello', len); } },
+    2: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; codecIn(y, 'hello', len); } },
+    3: { say: 'hello v1 ✓ → Ready', fn: () => { N[y].handlerState = 'Ready'; nodeBookIn(y); handlerHelloIn(y); spawn(logLine(y, 'handler', `hello from ${endpoint(x)}: ready`, true)); } },
   } });
 }
 function* ready(n) {
@@ -1176,12 +1687,12 @@ function* chat(x, text) {
   winSend(x, text);
   const len = jsonBytes({ type: 'chat', text, sent: sentStamp() });
   yield send([`${x}.window`, `${x}.handler`, `${x}.store`, `${x}.handler`, `${x}.codec`, `${y}.codec`, `${y}.handler`, `${y}.store`, `${y}.handler`, `${y}.window`], 'chat', { at: {
-    1: { say: 'SendAsync' },
-    2: { say: 'saved before send', fn: () => N[x].storeLines++ },
-    4: { say: `prefix ${hex4(len)} → ${len} B`, fn: () => { N[x].lastFrame = len; } },
-    5: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; } },
-    6: { say: 'MessageReceived' },
-    7: { say: 'saved', fn: () => N[y].storeLines++ },
+    1: { say: 'SendAsync', fn: () => handlerSend(x, text) },
+    2: { say: 'saved before send', fn: () => { N[x].storeLines++; storeSave(x, x, text); } },
+    4: { say: `prefix ${hex4(len)} → ${len} B`, fn: () => { N[x].lastFrame = len; codecOut(x, 'chat', len, text); } },
+    5: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; codecIn(y, 'chat', len); } },
+    6: { say: 'MessageReceived', fn: () => handlerRecv(y, text) },
+    7: { say: 'saved', fn: () => { N[y].storeLines++; storeSave(y, x, text); } },
     9: { say: 'posted to UI thread', fn: () => { N[y].chat.push({ from: x, text }); winReceive(y, text); } },
   } });
 }
@@ -1218,6 +1729,7 @@ function* scenario() {
     for (const n of ['A', 'B']) { N[n].handlerAlive = true; N[n].handlerState = 'WaitingForHello'; }
     winTabOpen('A');   // an outgoing conversation shows its tab at once
     nodeAccept('B'); nodeConnected('A');
+    handlerSocket('A'); handlerSocket('B');
     yield all(
       send(['A.node', 'A.handler'], 'cmd', { label: 'socket' }),
       send(['B.node', 'B.handler'], 'cmd', { label: 'socket' }),
@@ -1234,12 +1746,12 @@ function* scenario() {
     // A closes the conversation. FIN goes one way, then the other.
     floatAt('A.window', 'close conversation');
     yield send(['A.window', 'A.handler'], 'cmd', { label: 'close' });
-    N.A.handlerState = 'Closed'; N.A.tab = null; winEnd('A'); nodeBookOut('A');
+    N.A.handlerState = 'Closed'; N.A.tab = null; winEnd('A'); nodeBookOut('A'); handlerClose('A', 'LocalClose');
     spawn(logLine('A', 'handler', 'closed: LocalClose (closed by this node)', true));
     yield send(['A.handler', 'A.codec', 'B.codec', 'B.handler'], 'fin', { label: 'FIN', at: {
       2: { say: 'read → 0 bytes → end' },
       3: { say: 'EOF → Disconnected', fn: () => {
-        N.B.handlerState = 'Closed'; events.add('sawFin');
+        N.B.handlerState = 'Closed'; events.add('sawFin'); handlerClose('B', 'PeerClosed');
         spawn(logLine('B', 'handler', 'closed: PeerClosed (the peer closed the connection)', true));
       } },
     } });
@@ -1568,6 +2080,324 @@ ROOMS.node = {
   drawBack: drawNodeBack, drawFront: drawNodeFront,   // drawStation: NODE_DRAW, set where it is defined
 };
 
+// ---------- shared parts for rooms where things move along belts ----------
+// A flow holds items. Each item moves along a path; marks run a function once at a distance.
+function freshFlow(extra = {}) { return { items: [], ...extra }; }
+function flowAdd(f, kind, pts, marks = []) {
+  const item = { kind, pts, len: polyLen(pts), d: 0, marks: marks.map(([at, fn]) => ({ at: typeof at === 'number' ? at : polyLen(pts.slice(0, at + 1)), fn })) };
+  f.items.push(item);
+  return item;
+}
+function flowUpdate(f, dt, speed = 420) {
+  for (const it of f.items.slice()) {
+    it.d = Math.min(it.len, it.d + speed * dt);
+    for (const m of it.marks) if (!m.done && it.d >= m.at) { m.done = true; m.fn(it); }
+    if (it.d >= it.len) it.done = true;
+  }
+  f.items = f.items.filter(it => !it.done);
+}
+function flowHot(f, s) {
+  return f.items.some(it => { const p = pointAt(it.pts, it.d); return p.x > s.x - 20 && p.x < s.x + s.w + 20 && p.y > s.y - 20 && p.y < s.y + s.h + 20; });
+}
+function drawFlowItem(it) {
+  const p = pointAt(it.pts, it.d);
+  const block = (fill, label, w = 30, h = 22, color = '#000') => {
+    ctx.fillStyle = C.dk; ctx.fillRect(p.x - w / 2 - 2, p.y - h / 2 - 2, w + 4, h + 4);
+    ctx.fillStyle = fill; ctx.fillRect(p.x - w / 2, p.y - h / 2, w, h);
+    if (label) txt(label, p.x, p.y + 4, 10, color, true, 'center');
+  };
+  switch (it.kind) {
+    case 'socket':
+      block('#4080ff', '');
+      ctx.fillStyle = '#c0c0c0'; ctx.fillRect(p.x + 15, p.y - 7, 8, 4); ctx.fillRect(p.x + 15, p.y + 3, 8, 4); break;
+    case 'hello': block('#80ff80', 'HELLO', 40); break;
+    case 'msg': block('#fff4c0', it.label || 'chat', 40); break;
+    case 'json': block('#ffffff', '{ }', 40); break;
+    case 'frame': block('#202020', it.label || '00 00', 56, 22, '#ffe000'); break;
+    case 'bytes': for (let k = 0; k < 3; k++) { ctx.fillStyle = '#ffe000'; ctx.fillRect(p.x - 18 + k * 13, p.y - 5 + (k % 2) * 6, 9, 9); } break;
+    case 'paper': block('#fafafa', ''); ctx.fillStyle = C.lo; ctx.fillRect(p.x - 9, p.y - 4, 18, 2); ctx.fillRect(p.x - 9, p.y + 1, 12, 2); break;
+    case 'fin': ctx.fillStyle = C.dk; ctx.beginPath(); ctx.arc(p.x, p.y, 17, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff4040'; ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.fill(); txt('FIN', p.x, p.y + 4, 10, '#fff', true, 'center'); break;
+    default: block('#fff4c0', '');
+  }
+}
+function drawBelts(paths) {
+  const roll = (simTime / 12) % 30;
+  for (const pts of paths) {
+    strokePts(pts, 30, '#1a1a1a'); strokePts(pts, 22, '#3c3c3c');
+    ctx.setLineDash([6, 24]); ctx.lineDashOffset = -roll; strokePts(pts, 22, '#5a5a5a'); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  }
+}
+// The default station of a flow room: a box that glows while something passes, and up to 3 lines of live text.
+// A station can give `info: (n, f) => [lines]` and `draw: (s, n, f) => {}` for its own picture.
+function flowStation(flowOf) {
+  return (s, n) => {
+    const f = flowOf(n);
+    drawStationBox(s, s.title || s.name);
+    if (flowHot(f, s)) { ctx.strokeStyle = '#ffe000'; ctx.lineWidth = 6; ctx.strokeRect(s.x - 4, s.y - 4, s.w + 8, s.h + 8); }
+    if (s.draw) s.draw(s, n, f);
+    const lines = s.info ? s.info(n, f) : [];
+    lines.forEach((l, i) => { if (l) txt(fit(String(l), s.w - 24), s.x + 12, s.y + (s.draw ? s.h - 14 - (lines.length - 1 - i) * 18 : 58 + i * 22), i ? 13 : 15, i ? '#303030' : '#000', i === 0); });
+  };
+}
+
+// ---------- the ConnectionHandler room: the conversation keeper. Each station
+// stands for one thing ConnectionHandler.cs really does.
+const HANDLER_W = 2400, HANDLER_H = 1400;
+const HANDLER_STATIONS = [
+  { id: 'fromNode',   name: 'From the Node',  plate: 'SOCKET',  x: 20,   y: 140,  w: 150, h: 170, block: true, term: { side: 'right', at: 0.5 }, info: () => ['socket in', 'one per talk'] },
+  { id: 'states',     name: 'State lamps',    plate: 'STATE',   x: 300,  y: 100,  w: 380, h: 220, block: true, term: { side: 'bottom', at: 0.5 }, draw: drawStateLamps },
+  { id: 'keepalive',  name: 'Keepalive pump (OS)', plate: 'KEEPALIVE', x: 1880, y: 120, w: 220, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: n => [N[n].handlerAlive ? '60 s · 10 s · 3' : 'off', 'probes when quiet'] },
+  { id: 'logSlot',    name: 'To the LogWriter', title: 'To LogWriter', plate: 'LOG', x: 2160, y: 120, w: 200, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: (n, f) => [f.logHit > simTime ? 'line!' : 'hello · close', 'not sent'] },
+  { id: 'fromWindow', name: 'From the Window', title: 'From Window', plate: 'SEND',  x: 860, y: 40, w: 160, h: 110, block: true, term: { side: 'right', at: 0.5 }, info: () => ['SendAsync'] },
+  { id: 'sizeGate',   name: 'Size gate',      plate: 'SIZE',    x: 860,  y: 240,  w: 160, h: 130, block: true, term: { side: 'right', at: 0.5 }, info: () => ['≤ 65,536 B?', 'else: not sent'] },
+  { id: 'helloOut',   name: 'Hello sender',   plate: 'HELLO',   x: 300,  y: 440,  w: 200, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: n => ['hello first', `${INFO[n].id.slice(0, 8)} · v1`] },
+  { id: 'waiting',    name: 'Waiting shelf',  plate: 'WAITING', x: 600,  y: 440,  w: 220, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['0 texts waiting', 'until Ready'] },
+  { id: 'save',       name: 'Save stamp',     plate: 'SAVE',    x: 1080, y: 440,  w: 200, h: 200, block: true, term: { side: 'bottom', at: 0.8 }, info: n => ['store.Save', `${N[n].storeLines} saved`] },
+  { id: 'lock',       name: 'Write lock',     plate: 'LOCK',    x: 1450, y: 440,  w: 200, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: (n, f) => [f.lockUntil > simTime ? 'HELD' : 'free', 'one write at a time'] },
+  { id: 'codec',      name: 'Codec door',     plate: 'CODEC',   x: 2200, y: 440,  w: 180, h: 540, block: true, term: { side: 'left', at: 0.5 }, info: () => ['out ↑', 'in ↓'] },
+  { id: 'loop',       name: 'Receive loop',   plate: 'LOOP',    x: 1700, y: 820,  w: 250, h: 180, block: true, term: { side: 'bottom', at: 0.5 }, info: n => [N[n].handlerState === 'Ready' ? 'await ReadAsync' : 'not running', 'null → PeerClosed'] },
+  { id: 'helloCheck', name: 'Hello check',    plate: 'CHECK',   x: 1350, y: 820,  w: 230, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['≤ 10 s', 'version must be 1'] },
+  { id: 'events',     name: 'Event bells',    plate: 'EVENTS',  x: 560,  y: 820,  w: 260, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: (n, f) => [f.bellHit > simTime ? 'DING' : 'quiet', 'background thread'] },
+  { id: 'toWindow',   name: 'To the Window',  title: 'To Window', plate: 'UP', x: 20, y: 820, w: 150, h: 160, block: true, term: { side: 'top', at: 0.5 }, info: () => ['to the tab'] },
+  { id: 'toStore',    name: 'To the Store',   title: 'To Store', plate: 'STORE', x: 1080, y: 1100, w: 200, h: 170, block: true, term: { side: 'left', at: 0.5 }, info: () => ['saved lines', 'go down here'] },
+  { id: 'closeDesk',  name: 'Close desk',     plate: 'CLOSE',   x: 1450, y: 1100, w: 260, h: 170, block: true, term: { side: 'top', at: 0.5 }, info: (n, f) => [f.lastClose || 'nothing closed', 'FIN, drain ≤ 1 s'] },
+  { id: 'socket',     name: 'TCP socket',     plate: 'TCP',     x: 2200, y: 1100, w: 180, h: 170, block: true, term: { side: 'left', at: 0.5 }, info: () => [tcp === 'up' ? 'connected' : 'no connection', 'FIN · probes'] },
+];
+const H_SOCKET_IN = [{ x: 170, y: 225 }, { x: 1990, y: 225 }];
+const H_HELLO_OUT = [{ x: 400, y: 520 }, { x: 400, y: 390 }, { x: 1550, y: 390 }, { x: 1550, y: 520 }, { x: 2290, y: 520 }];
+const H_HELLO_IN = [{ x: 2290, y: 900 }, { x: 1825, y: 900 }, { x: 1465, y: 900 }];
+const H_SEND = [{ x: 940, y: 150 }, { x: 940, y: 305 }, { x: 940, y: 520 }, { x: 1180, y: 520 }, { x: 1550, y: 520 }, { x: 2290, y: 520 }];
+const H_RECV = [{ x: 2290, y: 900 }, { x: 1825, y: 900 }, { x: 1825, y: 700 }, { x: 1180, y: 620 }, { x: 690, y: 700 }, { x: 690, y: 900 }, { x: 20, y: 900 }];
+const H_TO_STORE = [{ x: 1180, y: 560 }, { x: 1180, y: 1185 }];
+const H_TO_LOG = [{ x: 1465, y: 820 }, { x: 1465, y: 740 }, { x: 2130, y: 740 }, { x: 2130, y: 300 }, { x: 2260, y: 230 }];
+const H_FIN_OUT = [{ x: 1580, y: 1185 }, { x: 2290, y: 1185 }];
+const H_PEER_FIN = [{ x: 2290, y: 900 }, { x: 1825, y: 900 }, { x: 1825, y: 1185 }, { x: 1710, y: 1185 }];
+const handlerRoom = { A: freshFlow({ logHit: 0, bellHit: 0, lockUntil: 0, lastClose: '' }), B: freshFlow({ logHit: 0, bellHit: 0, lockUntil: 0, lastClose: '' }) };
+const hLog = n => [[H_TO_LOG.length - 1, () => { handlerRoom[n].logHit = simTime + 700; }]];
+const hStore = n => () => flowAdd(handlerRoom[n], 'paper', H_TO_STORE);
+// Events from the scenario (the same moments as in ConnectionHandler.cs).
+function handlerSocket(n) { flowAdd(handlerRoom[n], 'socket', H_SOCKET_IN); }
+function handlerHelloOut(n) { flowAdd(handlerRoom[n], 'hello', H_HELLO_OUT, [[3, () => { handlerRoom[n].lockUntil = simTime + 500; }]]); }
+function handlerHelloIn(n) {
+  flowAdd(handlerRoom[n], 'hello', H_HELLO_IN, [[2, () => { flowAdd(handlerRoom[n], 'paper', H_TO_LOG, hLog(n)); handlerRoom[n].bellHit = simTime + 900; }]]);
+}
+function handlerSend(n, text) {
+  flowAdd(handlerRoom[n], 'msg', H_SEND, [[3, hStore(n)], [4, () => { handlerRoom[n].lockUntil = simTime + 500; }]]).label = fit(text, 40);
+}
+function handlerRecv(n, text) {
+  flowAdd(handlerRoom[n], 'msg', H_RECV, [[3, hStore(n)], [5, () => { handlerRoom[n].bellHit = simTime + 900; }]]);
+}
+function handlerClose(n, reason) {
+  const r = handlerRoom[n];
+  r.lastClose = reason;
+  if (reason === 'PeerClosed') flowAdd(r, 'fin', H_PEER_FIN);
+  else flowAdd(r, 'fin', H_FIN_OUT);
+  flowAdd(r, 'paper', [{ x: 1580, y: 1100 }, { x: 1580, y: 740 }, ...H_TO_LOG.slice(2)], [[4, () => { r.logHit = simTime + 700; r.bellHit = simTime + 900; }]]);
+}
+function drawStateLamps(s, n) {
+  const st = N[n].handlerState || '';
+  ['WaitingForHello', 'Ready', 'Closed'].forEach((name, i) => {
+    const on = st === name, x = s.x + 40 + i * 115, y = s.y + 90;
+    ctx.fillStyle = C.dk; ctx.beginPath(); ctx.arc(x + 30, y, 26, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = on ? ['#ffd000', '#20e040', '#ff4040'][i] : '#404040'; ctx.beginPath(); ctx.arc(x + 30, y, 22, 0, Math.PI * 2); ctx.fill();
+    txt(name === 'WaitingForHello' ? 'Waiting' : name, x + 30, y + 52, 13, '#000', on, 'center');
+  });
+  txt(N[n].handlerAlive || st === 'Closed' ? '' : '(no handler)', s.x + s.w / 2, s.y + s.h - 14, 12, C.lo, false, 'center');
+}
+function updateHandlerRoom(n, dt) { flowUpdate(handlerRoom[n], dt); }
+
+ROOMS.handler = {
+  name: 'ConnectionHandler', w: HANDLER_W, h: HANDLER_H,
+  spawn: { x: 130, y: HANDLER_H - 200 },
+  exit: { x: 70, y: HANDLER_H - 26, w: 120, h: 26 },
+  door: { at: 0.75 },
+  enterThought: 'Lamps, bells and a lock. One conversation lives in here.',
+  stations: HANDLER_STATIONS, dialogue: HANDLER_DIALOGUE, now: HANDLER_NOW,
+  rides: [
+    { name: 'the hello', stops: [
+      { x: 400, y: 520, say: 'Hello sender. Before anything else, the handler says hello: its node ID and version 1.' },
+      { x: 400, y: 390 },
+      { x: 1550, y: 390 }, { x: 1550, y: 520, say: 'The write lock. Even the hello takes its turn. Only one write at a time.' },
+      { x: 2290, y: 520, say: "Out through the Codec door. Now the handler waits for the friend's hello." },
+      { x: 2290, y: 900 }, { x: 1825, y: 900, say: "The friend's hello comes in at the bottom of the Codec door." },
+      { x: 1465, y: 900, say: 'Hello check: within 10 seconds, and the same version. All good: the friend\'s ID is known, the lamp turns to Ready, and the log gets "hello from …: ready".' },
+    ] },
+    { name: 'a message going out', stops: [
+      { x: 940, y: 150, say: 'From the Window: the human pressed Send. SendAsync starts.' },
+      { x: 940, y: 305, say: 'Size gate: the text fits in one message. A too-long text would stop here: never saved, never sent, connection still open.' },
+      { x: 940, y: 520 },
+      { x: 1180, y: 520, say: 'Save stamp: saved now, before sending, with the click time. A copy goes down to the store.' },
+      { x: 1550, y: 520, say: 'Write lock: one write at a time, so two frames never mix.' },
+      { x: 2290, y: 520, say: 'Out through the Codec door. If the write fails, a "not sent" mark is saved and the conversation closes: ConnectionLost.' },
+    ] },
+    { name: 'a message coming in', stops: [
+      { x: 2290, y: 900, say: 'In through the Codec door: one whole message.' },
+      { x: 1825, y: 900, say: 'Receive loop: it awaited the next message, without blocking a thread. A chat: good. A second hello would be a ProtocolError.' },
+      { x: 1825, y: 700 },
+      { x: 1180, y: 620, say: 'Save stamp: saved right after it was read.' },
+      { x: 690, y: 700 },
+      { x: 690, y: 900, say: 'Event bells: MessageReceived rings, on a background thread.' },
+      { x: 20, y: 900, say: 'Up to the Window, which posts it to its UI thread and paints it.' },
+    ] },
+  ],
+  update: updateHandlerRoom,
+  drawBack: () => drawBelts([H_SOCKET_IN, H_HELLO_OUT, H_SEND, H_RECV, H_TO_STORE, H_TO_LOG, H_FIN_OUT, H_PEER_FIN.slice(1)]),
+  drawFront: n => handlerRoom[n].items.forEach(drawFlowItem),
+  drawDefault: flowStation(n => handlerRoom[n]),
+};
+
+// ---------- the ConversationStore room: the archive. The same design as the
+// LogWriter (one belt, one writer); each station is one thing ConversationStore.cs does.
+const STORE_W = 2400, STORE_H = 1400;
+const STORE_STATIONS = [
+  { id: 'gate',    name: 'Closing gate',    plate: 'GATE',    x: 20,   y: 110, w: 130, h: 130, block: true, term: { side: 'right', at: 0.5 }, info: () => ['OPEN', 'writes the rest'] },
+  { id: 'slots',   name: 'Save slot',       plate: 'SLOT',    x: 20,   y: 280, w: 130, h: 260, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['Save()', 'returns at once'] },
+  { id: 'idStamp', name: 'ID stamper',      plate: 'ID',      x: 260,  y: 300, w: 150, h: 180, block: true, term: { side: 'bottom', at: 0.5 }, info: (n, f) => ['new Id', f.lastId ? `${f.lastId}…` : '—'] },
+  { id: 'press',   name: 'JSON line press', title: 'JSON press', plate: 'PRESS', x: 480, y: 300, w: 180, h: 180, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['one line:', 'id·from·text·sent'] },
+  { id: 'belt',    name: 'Belt',            plate: 'BELT',    x: 720,  y: 370, w: 560, h: 60,  block: false, box: false, term: { side: 'bottom', at: 0.5 } },
+  { id: 'arm',     name: 'The one arm',     title: 'One arm', plate: 'ARM', x: 1330, y: 450, w: 120, h: 130, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['one writer'] },
+  { id: 'chooser', name: 'File chooser',    title: 'Chooser', plate: 'FILE?', x: 1520, y: 350, w: 110, h: 120, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['peer ID?'] },
+  { id: 'shelf',   name: 'conversations/ folder', plate: 'FOLDER', x: 1760, y: 110, w: 560, h: 640, block: false, box: false, bias: 90, term: { side: 'bottom', at: 0.12 } },
+  { id: 'file',    name: 'Friend file',     plate: 'JSONL',   x: 1900, y: 220, w: 320, h: 170, block: true, term: { side: 'right', at: 0.5 }, draw: drawStoreFile },
+  { id: 'marker',  name: 'Not-sent marker', plate: 'MARK',    x: 20,   y: 700, w: 200, h: 170, block: true, term: { side: 'right', at: 0.5 }, info: () => ['MarkNotSent', '{"notSent": id}'] },
+  { id: 'lamp',    name: 'Red lamp & shredder', title: 'Red lamp', plate: 'LAMP', x: 1330, y: 780, w: 170, h: 170, block: true, term: { side: 'right', at: 0.5 }, info: () => ['dark', 'StoreFailed: no'] },
+  { id: 'reader',  name: 'History reader',  plate: 'READER',  x: 1900, y: 860, w: 320, h: 200, block: true, term: { side: 'left', at: 0.5 }, info: () => ['ReadHistory', 'skips broken lines'] },
+];
+const S_ARC = [{ x: 1280, y: 400 }, { x: 1330, y: 320 }, { x: 1420, y: 300 }, { x: 1510, y: 320 }, { x: 1575, y: 410 }, { x: 1700, y: 300 }, { x: 2060, y: 300 }];
+const S_SAVE = [{ x: 150, y: 410 }, { x: 335, y: 410 }, { x: 570, y: 410 }, { x: 720, y: 400 }, ...S_ARC];
+const S_MARK = [{ x: 220, y: 785 }, { x: 600, y: 785 }, { x: 720, y: 400 }, ...S_ARC];
+const S_READ = [{ x: 2060, y: 390 }, { x: 2060, y: 860 }];
+const storeRoom = { A: freshFlow({ lines: [], lastId: '' }), B: freshFlow({ lines: [], lastId: '' }) };
+const shortGuid = () => Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+function storeSave(n, from, text) {
+  const f = storeRoom[n];
+  const id = shortGuid();
+  flowAdd(f, 'paper', S_SAVE, [
+    [1, () => { f.lastId = id; }],
+    [S_SAVE.length - 1, () => f.lines.push(`{"id":"${id}…","from":"${INFO[from].id.slice(0, 8)}…","text":${JSON.stringify(text)},"sent":"${utcStamp()}"}`)],
+  ]);
+}
+function drawStoreFile(s, n, f) {
+  bevel(s.x + 10, s.y + 34, s.w - 20, s.h - 44, false, '#fff', 2);
+  txt(`${INFO[other(n)].id.slice(0, 8)}….jsonl · ${f.lines.length} lines`, s.x + 18, s.y + 54, 12, C.navy, true);
+  f.lines.slice(-4).forEach((l, i) => { font(10, false); ctx.fillStyle = '#000'; ctx.textAlign = 'left'; ctx.fillText(fit(l, s.w - 36), s.x + 18, s.y + 74 + i * 18); });
+  if (!f.lines.length) txt('(empty)', s.x + 18, s.y + 76, 12, C.lo);
+}
+function updateStoreRoom(n, dt) { flowUpdate(storeRoom[n], dt, 360); }
+
+ROOMS.store = {
+  name: 'ConversationStore', w: STORE_W, h: STORE_H,
+  spawn: { x: 130, y: STORE_H - 200 },
+  exit: { x: 70, y: STORE_H - 26, w: 120, h: 26 },
+  door: { at: 0.3 },
+  enterThought: 'Rows of files. It smells like old paper in here.',
+  stations: STORE_STATIONS, dialogue: STORE_DIALOGUE, now: STORE_NOW,
+  rides: [
+    { name: 'a message being saved', stops: [
+      { x: 150, y: 410, say: 'Save slot. The handler dropped me in and went straight back to the conversation. Save returned at once.' },
+      { x: 335, y: 410, say: 'ID stamper: I get a new Id, a GUID. The handler keeps it, in case I must be marked "not sent" later.' },
+      { x: 570, y: 410, say: 'JSON line press: I become one line: {"id": …, "from": …, "text": "hi", "sent": …}.' },
+      { x: 720, y: 400, say: 'The belt. I wait in line. It has no end, so Save never has to wait.' },
+      { x: 1280, y: 400, say: 'The one arm: one writer, one line at a time, in order. Two lines never mix.' },
+      ...S_ARC.slice(1, 4),
+      { x: 1575, y: 410, say: "File chooser: I belong to the friend's file, named after their ID." },
+      { x: 1700, y: 300 },
+      { x: 2060, y: 300, say: 'Added at the end of the file. Nothing in it is ever changed or deleted: append-only.' },
+    ] },
+    { name: 'a "not sent" mark', stops: [
+      { x: 220, y: 785, say: 'The not-sent marker. A message was saved, but sending it failed.' },
+      { x: 600, y: 785, say: 'I am a new line: {"notSent": the Id of that message}. The old line stays as it is.' },
+      { x: 720, y: 400, say: 'The same belt, the same arm, the same order.' },
+      ...S_ARC.slice(0, 6),
+      { x: 2060, y: 300, say: 'Added at the end, after my message. When the history is read, the reader joins us.' },
+    ] },
+    { name: 'the history being read', stops: [
+      { x: 2060, y: 390, say: 'The human pressed Chat history. The reader opens this friend\'s file.' },
+      { x: 2060, y: 860, say: 'Every line is read. Broken lines are skipped. Marks are joined to their messages at the end. Lines still on the belt are not in the file yet.' },
+    ] },
+  ],
+  update: updateStoreRoom,
+  drawBack: () => {
+    drawBelts([S_SAVE, S_MARK.slice(0, 3), S_READ]);
+    const sh = STORE_STATIONS.find(st => st.id === 'shelf');
+    ctx.setLineDash([14, 10]); ctx.strokeStyle = '#c8a800'; ctx.lineWidth = 4; ctx.strokeRect(sh.x, sh.y, sh.w, sh.h); ctx.setLineDash([]);
+    txt('conversations/', sh.x + 16, sh.y + 34, 26, '#e8c800', true);
+  },
+  drawFront: n => storeRoom[n].items.forEach(drawFlowItem),
+  drawDefault: flowStation(n => storeRoom[n]),
+};
+
+// ---------- the Codec room: the byte workshop. Top line: a message becomes a
+// frame. Bottom line: bytes become a message again. Each station is one step of Codec.cs.
+const CODEC_W = 2400, CODEC_H = 1400;
+const CODEC_STATIONS = [
+  { id: 'fromHandler', name: 'From the handler', title: 'From handler', plate: 'IN', x: 20, y: 250, w: 150, h: 170, block: true, term: { side: 'top', at: 0.5 }, info: () => ['a message'] },
+  { id: 'json',     name: 'JSON press',     plate: 'JSON',    x: 300,  y: 250, w: 220, h: 170, block: true, term: { side: 'top', at: 0.5 }, info: (n, f) => ['UTF-8 JSON', f.lastJson || '"type" first'] },
+  { id: 'limit',    name: 'Limit gate',     plate: 'LIMIT',   x: 620,  y: 250, w: 180, h: 170, block: true, term: { side: 'top', at: 0.5 }, info: (n, f) => ['≤ 65,536 B', f.lastOut ? `${f.lastOut} B ✓` : ''] },
+  { id: 'stamp',    name: 'Length stamper', plate: 'LENGTH',  x: 920,  y: 250, w: 200, h: 170, block: true, term: { side: 'top', at: 0.5 }, info: (n, f) => ['4 bytes, big-endian', f.lastOut ? hex4(f.lastOut) : ''] },
+  { id: 'frame',    name: 'Frame builder',  plate: 'FRAME',   x: 1240, y: 250, w: 220, h: 170, block: true, term: { side: 'top', at: 0.5 }, info: () => ['prefix + JSON', 'one write'] },
+  { id: 'toSocket', name: 'To the socket',  title: 'To socket', plate: 'OUT', x: 2200, y: 250, w: 180, h: 170, block: true, term: { side: 'top', at: 0.5 }, info: () => ['WriteAsync'] },
+  { id: 'fromSocket', name: 'From the socket', title: 'From socket', plate: 'IN', x: 2200, y: 820, w: 180, h: 170, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['bytes, any sizes'] },
+  { id: 'prefix',   name: 'Prefix reader',  plate: 'COUNT 4', x: 1800, y: 820, w: 220, h: 170, block: true, term: { side: 'bottom', at: 0.5 }, info: (n, f) => ['read 4 bytes', f.lastIn ? hex4(f.lastIn) : '0 → null'] },
+  { id: 'check',    name: 'Length check',   plate: 'CHECK',   x: 1440, y: 820, w: 200, h: 170, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['0 ≤ length', '≤ 65,536'] },
+  { id: 'exact',    name: 'Exact reader',   plate: 'EXACT',   x: 1080, y: 820, w: 220, h: 170, block: true, term: { side: 'bottom', at: 0.5 }, info: (n, f) => ['ReadExactly', f.lastIn ? `${f.lastIn} B` : ''] },
+  { id: 'unjson',   name: 'JSON reader',    plate: 'UNPACK',  x: 700,  y: 820, w: 220, h: 170, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['"type" →', 'Hello / Chat'] },
+  { id: 'toHandler', name: 'To the handler', title: 'To handler', plate: 'OUT', x: 20, y: 820, w: 150, h: 170, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['message', 'or null'] },
+  { id: 'stream',   name: 'Any-stream sign', title: 'Any stream', plate: 'SIGN', x: 1500, y: 520, w: 320, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['no socket here', 'no log here'] },
+  { id: 'errors',   name: 'Error desk',     plate: 'ERRORS',  x: 760,  y: 520, w: 320, h: 160, block: true, term: { side: 'bottom', at: 0.5 }, info: () => ['null · EndOfStream', 'ProtocolException'] },
+];
+const C_SEND = [{ x: 170, y: 335 }, { x: 410, y: 335 }, { x: 710, y: 335 }, { x: 1020, y: 335 }, { x: 1350, y: 335 }, { x: 2290, y: 335 }];
+const C_RECV = [{ x: 2290, y: 905 }, { x: 1910, y: 905 }, { x: 1540, y: 905 }, { x: 1190, y: 905 }, { x: 810, y: 905 }, { x: 20, y: 905 }];
+const codecRoom = { A: freshFlow({ lastJson: '', lastOut: 0, lastIn: 0 }), B: freshFlow({ lastJson: '', lastOut: 0, lastIn: 0 }) };
+function codecOut(n, kind, len, text) {
+  const f = codecRoom[n];
+  flowAdd(f, kind === 'hello' ? 'hello' : 'msg', C_SEND, [
+    [1, it => { it.kind = 'json'; f.lastJson = kind === 'hello' ? '{"type":"hello",…}' : `{"type":"chat","text":${JSON.stringify(text)},…}`; }],
+    [2, () => { f.lastOut = len; }],
+    [3, it => { it.kind = 'frame'; it.label = hex4(len).slice(6); }],
+  ]).label = kind;
+}
+function codecIn(n, kind, len) {
+  const f = codecRoom[n];
+  flowAdd(f, 'bytes', C_RECV, [
+    [1, it => { it.kind = 'frame'; it.label = hex4(len).slice(6); f.lastIn = len; }],
+    [4, it => { it.kind = kind === 'hello' ? 'hello' : 'msg'; it.label = kind; }],
+  ]);
+}
+function updateCodecRoom(n, dt) { flowUpdate(codecRoom[n], dt, 380); }
+
+ROOMS.codec = {
+  name: 'Codec', w: CODEC_W, h: CODEC_H,
+  spawn: { x: 130, y: CODEC_H - 200 },
+  exit: { x: 70, y: CODEC_H - 26, w: 120, h: 26 },
+  door: { at: 0.2 },
+  enterThought: 'Presses and counters. Everything in here is about bytes.',
+  stations: CODEC_STATIONS, dialogue: CODEC_DIALOGUE, now: CODEC_NOW,
+  rides: [
+    { name: 'a message becoming a frame', stops: [
+      { x: 170, y: 335, say: 'From the handler: one whole message, a chat with the text "hi".' },
+      { x: 410, y: 335, say: () => `JSON press: {"type":"chat","text":"hi","sent":…}. The type comes first. In UTF-8 that is ${jsonBytes({ type: 'chat', text: 'hi', sent: sentStamp() })} bytes.` },
+      { x: 710, y: 335, say: 'Limit gate: under 65,536 bytes. A bigger message would be refused here and never sent.' },
+      { x: 1020, y: 335, say: () => `Length stamper: 4 bytes in front, most significant first: ${hex4(jsonBytes({ type: 'chat', text: 'hi', sent: sentStamp() }))}.` },
+      { x: 1350, y: 335, say: 'Frame builder: the prefix and the JSON become one block, sent with one write.' },
+      { x: 2290, y: 335, say: 'Into the stream. The Codec owns no socket: it writes to whatever stream it was given.' },
+    ] },
+    { name: 'bytes becoming a message', stops: [
+      { x: 2290, y: 905, say: 'From the socket: bytes in any sizes. TCP has no message edges, and no pauses you can trust.' },
+      { x: 1910, y: 905, say: 'Prefix reader: get exactly 4 bytes. If the first read gives 0 bytes, the friend closed: null, a normal end.' },
+      { x: 1540, y: 905, say: 'Length check, before any memory is reserved: not negative, not above 65,536. A prefix that says 3 GB stops here.' },
+      { x: 1190, y: 905, say: 'Exact reader: read exactly that many bytes, however many reads it takes. If the stream ends now: EndOfStreamException.' },
+      { x: 810, y: 905, say: 'JSON reader: "type" says chat, so I become a ChatMessage. Bad JSON or an unknown type: ProtocolException.' },
+      { x: 20, y: 905, say: 'To the handler. The Codec never closes or logs anything. The handler decides what to do.' },
+    ] },
+  ],
+  update: updateCodecRoom,
+  drawBack: () => drawBelts([C_SEND, C_RECV]),
+  drawFront: n => codecRoom[n].items.forEach(drawFlowItem),
+  drawDefault: flowStation(n => codecRoom[n]),
+};
+
 // ---------- the room engine ----------
 // Every room gets a package-view port next to its exit.
 const PORT_STATION = { id: 'port', name: 'Package view', plate: 'PACKAGE', x: 260, y: 1150, w: 160, h: 120, block: true, term: { side: 'top', at: 0.5 } };
@@ -1647,6 +2477,57 @@ function tryBoost() {
   if (robot.boostWait > 0 || robot.ride || robot.pushed || dlg.part) return;
   robot.boost = BOOST_TIME; robot.boostWait = BOOST_COOLDOWN;
   sfxBoost();
+}
+// True when (x, y) is inside a machine, a terminal or a station (not a wall or a board edge).
+function objectAt(x, y) {
+  const inside = r => x > r.x - 10 && x < r.x + r.w + 10 && y > r.y - 10 && y < r.y + r.h + 10;
+  if (scene.kind === 'inside') return roomOf().stations.some(s => (s.block && inside(s)) || inside(termRect(s)));
+  return parts.some(p => inside(p) || inside(termRect(p))) || inside(pwBoard());
+}
+
+// The traffic cop: an antibody that warns you when you boost into something (game rule, not Chatap).
+const COP_LINES = [
+  'Hey! Hey! Whaddaya think this is, the Indy 500?',
+  "Slow it down, pal. This ain't Coney Island.",
+  'Whoa, whoa, whoa. You wanna ram the machines? Not on my beat.',
+  "License and registration. ...You're a robot. Fine. Just slow down.",
+  'Easy, hotshot. You break it, you bought it.',
+  "Hey! We're rollin' here! Watch where you're goin'!",
+  "What, you got somewhere to be? Everybody's got somewhere to be.",
+  'Fuggedaboutit. Just keep it under the limit, capisce?',
+  'Nice machine you just dinged. Real nice. Walk it off.',
+  "You're lucky my coffee didn't spill, wise guy.",
+  "Badge number 404. Remember it, 'cause I'll remember you.",
+  "One more stunt like that and you're spendin' the night in the recycle bin.",
+  "Don't make me write you up, kid. I hate paperwork.",
+  'Move along, move along. Nothin\'s broken here. Yet.',
+  'This is a factory, not a demolition derby. Ease up.',
+];
+let cop = null, lastCopLine = -1;
+function callCop() {
+  let k; do { k = Math.floor(Math.random() * COP_LINES.length); } while (k === lastCopLine && COP_LINES.length > 1);
+  lastCopLine = k;
+  const side = robot.dir > 0 ? -1 : 1;   // stand behind the robot
+  cop = { x: robot.x + side * 70, y: robot.y - 30, line: COP_LINES[k], t: 0, wob: 0, scene: scene.kind === 'inside' ? `${scene.room}.${scene.node}` : 'world' };
+  sfxWhistle();
+}
+function updateCop(dt) {
+  if (!cop) return;
+  cop.t += dt; cop.wob += dt * 9;
+  const here = scene.kind === 'inside' ? `${scene.room}.${scene.node}` : 'world';
+  if (cop.t > 3.6 || cop.scene !== here) cop = null;
+}
+function drawCop() {
+  if (!cop) return;
+  const k = AB * 1.5, pop = Math.min(1, cop.t / 0.15), fadeOut = Math.max(0, Math.min(1, (3.6 - cop.t) / 0.4));
+  ctx.globalAlpha = fadeOut;
+  drawAntibody(cop.x, cop.y, k * pop, cop.wob);
+  // the police cap
+  ctx.fillStyle = '#102a80'; ctx.fillRect(cop.x - 24 * k, cop.y - 34 * k, 48 * k, 14 * k);
+  ctx.fillRect(cop.x - 30 * k, cop.y - 22 * k, 60 * k, 5 * k);
+  ctx.fillStyle = '#ffd700'; ctx.fillRect(cop.x - 4 * k, cop.y - 31 * k, 8 * k, 8 * k);
+  if (cop.t > 0.15) bubble(cop.line, cop.x, cop.y - 40 * k, 11, 240);
+  ctx.globalAlpha = 1;
 }
 const KEYMAP = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
 
@@ -1754,7 +2635,13 @@ function updateRobot(dt) {
   robot.moving = false;
   if (len > 0) {
     const step = ROBOT_SPEED * dt * (robot.boost > 0 ? BOOST_FACTOR : 1);
+    const x0 = robot.x, y0 = robot.y;
     const moved = tryMove((vx / len) * step, (vy / len) * step);
+    // Boosting into a machine or a station: the traffic cop comes.
+    if (robot.boost > 0 && Math.hypot(robot.x - x0, robot.y - y0) < step * 0.5 && objectAt(robot.x + (vx / len) * 24, robot.y + (vy / len) * 24)) {
+      robot.boost = 0;
+      callCop();
+    }
     if (!moved && robot.target) { robot.target = null; think('Something is in my way.'); }
     robot.moving = moved;
     if (vx) robot.dir = vx > 0 ? 1 : -1;
@@ -1874,6 +2761,7 @@ function pushDirection(p) {
 addEventListener('keydown', e => {
   if (quiz.phase !== 'off') {
     if (e.key === 'Escape') { closeQuiz(); e.preventDefault(); return; }
+    if (TEST_MODE && quiz.phase === 'ask' && e.key.toLowerCase() === 'f') { answer(true); e.preventDefault(); return; }
     const num = parseInt(e.key, 10);
     if (num >= 1) { const b = quizOpts.querySelectorAll('button')[num - 1]; if (b) { b.click(); e.preventDefault(); } }
     return;
@@ -2325,12 +3213,16 @@ function quizButton(label, fn) {
   b.className = 'w95'; b.textContent = label; b.onclick = fn;
   quizOpts.append(b);
 }
+// Test switch: open the page as index.html?test (or #test) to get an extra answer F that is always correct.
+const TEST_MODE = /\btest\b/.test((location.search || '') + (location.hash || ''));
+if (TEST_MODE) document.querySelector('#appTitle span').textContent = 'NodeWorld — TEST MODE (F = correct answer)';
 function showQuestion() {
   const it = quiz.items[quiz.i];
   quizNum.textContent = `Question ${quiz.i + 1} of ${quiz.items.length}`;
   quizText.textContent = it.q;
   quizOpts.innerHTML = '';
   it.opts.forEach((o, k) => quizButton(`${k + 1}. ${o.text}`, () => answer(o.right)));
+  if (TEST_MODE) quizButton('F. (test) correct', () => answer(true));
 }
 function answer(right) {
   if (!right) quiz.wrong.push(quiz.i + 1);
@@ -2814,7 +3706,7 @@ function drawBoostTrail() {
 function drawRobotLabels() {
   const top = robot.y - 50 * RS - (swarm && swarm.state !== 'leave' && scene.kind === 'world' ? 60 : 0);
   if (robot.thought && robot.thought.until > performance.now()) { bubble(robot.thought.text, robot.x, top - 4, 11, 260); return; }
-  if (dlg.part || robot.ride || robot.pushed || locked()) return;
+  if (dlg.part || robot.ride || robot.pushed || locked() || cop) return;   // no hints while the cop talks
   let hint = null, faint = false;
   if (scene.kind === 'inside') {
     if (nearExit()) hint = 'E: go back outside';
@@ -2850,7 +3742,7 @@ function drawInside() {
   // stations: a box with a title bar, unless the room draws its own (box: false = no box)
   for (const s of r.stations) {
     if (s.box === false) continue;
-    const own = s.id === 'port' ? drawPortStation : r.drawStation && r.drawStation[s.id];
+    const own = s.id === 'port' ? drawPortStation : (r.drawStation && r.drawStation[s.id]) || r.drawDefault;
     if (own) own(s, n); else drawStationBox(s, s.name);
   }
   for (const st of r.stations) drawTerminalBox(termRect(st), dlg.part === ST_INST[scene.room][n][st.id]);
@@ -3297,6 +4189,7 @@ function render(now) {
   drawRobot(ctx, robot.x, robot.y, RS, robot.dir, robot.phase, robot.moving || !!robot.pushed, t);
   drawSwarm();
   drawGuard();
+  drawCop();
   drawRidePackage();
   drawRobotLabels();
   drawMinimap();
@@ -3478,6 +4371,8 @@ function sfxWrong() { if (!audio.ctx) return; const t = audio.ctx.currentTime; [
 function sfxBoost() { if (!audio.ctx) return; const t = audio.ctx.currentTime; noiseHit(t, 0.35, 'bandpass', 1200, 0.12, audio.sfx, 2); tone(300, t, 0.3, 'sawtooth', 0.03, audio.sfx, 900); }
 // Going through a door: a low slide down into the dark.
 function sfxEnter() { if (!audio.ctx) return; const t = audio.ctx.currentTime; tone(220, t, 1.4, 'triangle', 0.08, audio.sfx, 55); noiseHit(t, 1.2, 'lowpass', 500, 0.08, audio.sfx); }
+// A cop's whistle: two short, high blasts.
+function sfxWhistle() { if (!audio.ctx) return; const t = audio.ctx.currentTime; tone(2600, t, 0.12, 'square', 0.04, audio.sfx, 2900); tone(2600, t + 0.18, 0.28, 'square', 0.04, audio.sfx, 3000); }
 function sfxClick() { if (audio.ctx) tone(1400, audio.ctx.currentTime, 0.03, 'square', 0.03, audio.sfx); }
 function sfxHangup() { if (audio.ctx) tone(900, audio.ctx.currentTime, 0.14, 'square', 0.04, audio.sfx, 300); }
 function sfxThunk() {
@@ -3633,6 +4528,7 @@ function frame(now) {
   updateRide(dt);
   updateGuard(dt);
   updateRobot(dt);
+  updateCop(dt);
   reveal();
   updateZoom(dt);
   updateCamera(dt);

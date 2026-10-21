@@ -52,9 +52,14 @@ not Chatap behaviour:
 - **Package view and the guard.** The package-view ride is a replay of one
   message's route through a room, not a live packet. The guard antibody that
   throws the robot out of a factory is a game rule.
+- **The traffic cop.** Boost into a machine and an antibody in a police cap
+  tells you off. Pure game rule.
 - **Sound.** Music, modem noise and packet sounds are decoration.
 
 ## Development
+
+Open `index.html?test` (or `index.html#test`) to play in test mode: every quiz question gets an extra
+answer **F** (or press the F key) that always counts as correct.
 
 `dev/harness.js` runs the page script in Node.js with fake browser objects and
 checks the main behaviours:

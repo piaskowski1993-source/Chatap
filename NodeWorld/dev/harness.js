@@ -11,7 +11,7 @@ const els={}; global.document={documentElement:{},addEventListener:()=>{},getEle
 const listeners={}; global.addEventListener=(k,f)=>{(listeners[k]=listeners[k]||[]).push(f)}; global.ResizeObserver=class{observe(){}}; let T=0; global.performance={now:()=>T};
 let rafCb=null; global.requestAnimationFrame=cb=>{rafCb=cb}; global.window={devicePixelRatio:1, AudioContext: function(){ return anyProxy(); }}; global.location={hash:''};
 global.setInterval=(f)=>{ global.__musicTick=f; };
-eval(fs.readFileSync(__dirname+'/cw.js','utf8')+`;globalThis.__t={robot,interact,termSpot,doorRect,P,BOARD,ST_INST,factory,know,doorOpen,dlg,closeDialog,quiz,progress,wantedTrack,winRoom,nodeRoom,N,enterRoom,exitRoom,get pkgRide(){return pkgRide},get guard(){return guard},get fade(){return fade},ROOMS,tryBoost,keys,updateRobot,get scene(){return scene},get swarm(){return swarm},blocked,nearTerminal,nearDoor,defense,initAudio,get voices(){return voices}};`);
+eval(fs.readFileSync(__dirname+'/cw.js','utf8')+`;globalThis.__t={robot,interact,termSpot,doorRect,P,BOARD,ST_INST,factory,know,doorOpen,dlg,closeDialog,quiz,progress,wantedTrack,winRoom,nodeRoom,handlerRoom,storeRoom,codecRoom,PASSWORDS,N,enterRoom,exitRoom,get pkgRide(){return pkgRide},get guard(){return guard},get fade(){return fade},ROOMS,tryBoost,keys,updateRobot,get scene(){return scene},get swarm(){return swarm},blocked,nearTerminal,nearDoor,defense,initAudio,get voices(){return voices}};`);
 const tick=n=>{for(let i=0;i<n;i++){T+=1000/60; rafCb(T); if(global.__musicTick) global.__musicTick();}};
 const opts=()=>els.dlgOpts.children.map(c=>c.textContent||c.tag);
 const talkUntilOptions=()=>{ for(let i=0;i<60*40 && !t.dlg.optionsShown;i++) tick(1); };
@@ -100,5 +100,25 @@ let t;
  { const sp=t.termSpot(t.P['A.node']); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions();
    els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('Take the quiz')).onclick(); for(let i=0;i<60*20&&t.quiz.phase!=='ask';i++) tick(1);
    console.log('node quiz:', takeQuiz([]).replace(/<[^>]+>/g,''), '| earned:', [...t.progress.earned]); els.quizOpts.children[0].onclick(); talkUntilOptions(); t.closeDialog(); }
+ // ---- generic room check: password, terminals, every topic, every ride, quiz ----
+ const roomCheck=(type)=>{
+   t.exitRoom && t.scene.kind==='inside' && t.exitRoom();
+   const sp=t.termSpot(t.P['A.'+type]); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions();
+   const locked=!t.doorOpen['A.'+type]; if (locked) typePw(t.PASSWORDS[type]); t.closeDialog();
+   t.enterRoom(t.P['A.'+type]); let bad=0;
+   if (t.blocked(t.robot.x,t.robot.y)) { console.log('BAD spawn', type); bad++; }
+   for (const k in t.ST_INST[type].A){ const inst=t.ST_INST[type].A[k]; const q=t.termSpot(inst); t.robot.x=q.x; t.robot.y=q.y; if(t.blocked(q.x,q.y)||t.nearTerminal()!==inst){ console.log('BAD terminal',type,k, t.blocked(q.x,q.y), t.nearTerminal()&&t.nearTerminal().id); bad++; } }
+   for (let pass=0; pass<2; pass++) for (const k in t.ST_INST[type].A){ const inst=t.ST_INST[type].A[k]; const q=t.termSpot(inst); t.robot.x=q.x; t.robot.y=q.y; t.interact(); talkUntilOptions(); for(;;){ const b=els.dlgOpts.children.find(c=>c.textContent&&/^\d+\. (?!✓)/.test(c.textContent)&&!/right now|Goodbye|Ride/.test(c.textContent)); if(!b) break; b.onclick(); talkUntilOptions(); } els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('right now')).onclick(); talkUntilOptions(); t.closeDialog(); }
+   const rides=t.ROOMS[type].rides.length; let frames=[];
+   for (let i=0;i<rides;i++){ const port=t.ST_INST[type].A.port, q=t.termSpot(port); t.robot.x=q.x; t.robot.y=q.y; t.interact(); talkUntilOptions(); els.dlgOpts.children.filter(c=>c.textContent&&c.textContent.includes('Ride'))[i].onclick(); let k=0; while(t.pkgRide&&k<60*200){ tick(1); k++; } frames.push(k); tick(60*12); if (t.scene.kind!=='inside') t.enterRoom(t.P['A.'+type]); }
+   if (t.scene.kind==='inside') t.exitRoom();
+   const q=t.termSpot(t.P['A.'+type]); t.robot.x=q.x; t.robot.y=q.y; t.interact(); talkUntilOptions();
+   els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('Take the quiz')).onclick(); for(let i=0;i<60*20&&t.quiz.phase!=='ask';i++) tick(1);
+   const res=takeQuiz([]).replace(/<[^>]+>/g,''); els.quizOpts.children[0].onclick(); talkUntilOptions(); t.closeDialog();
+   const asked=[...t.know.asked].filter(k=>k.startsWith(type+':')).length, total=Object.values(t.ROOMS[type].dialogue).reduce((a,d)=>a+d.topics.length,0);
+   console.log(`${type}: was locked ${locked} | bad ${bad} | topics asked ${asked}/${total} | ride frames ${frames.join(',')} | quiz: ${res.slice(0,70)} | earned ${[...t.progress.earned].join(',')}`);
+ };
+ for (const type of ['handler','store','codec']) roomCheck(type);
+ console.log('live counts A/B: handler items', t.handlerRoom.A.items.length, t.handlerRoom.B.items.length, '| store lines', t.storeRoom.A.lines.length, t.storeRoom.B.lines.length, '| codec lastOut/In A', t.codecRoom.A.lastOut, t.codecRoom.A.lastIn, '| handler lastClose', t.handlerRoom.A.lastClose, t.handlerRoom.B.lastClose);
  t.enterRoom(t.P['B.window']); tick(60*60); console.log('B window lines:', t.winRoom.B.lines.length, '| items now:', t.winRoom.B.items.length, '| 1 min inside OK');
 })().catch(e=>{console.error('ERR',e);process.exit(1)});
