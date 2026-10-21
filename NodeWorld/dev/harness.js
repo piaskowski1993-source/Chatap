@@ -11,7 +11,7 @@ const els={}; global.document={documentElement:{},addEventListener:()=>{},getEle
 const listeners={}; global.addEventListener=(k,f)=>{(listeners[k]=listeners[k]||[]).push(f)}; global.ResizeObserver=class{observe(){}}; let T=0; global.performance={now:()=>T};
 let rafCb=null; global.requestAnimationFrame=cb=>{rafCb=cb}; global.window={devicePixelRatio:1, AudioContext: function(){ return anyProxy(); }}; global.location={hash:''};
 global.setInterval=(f)=>{ global.__musicTick=f; };
-eval(fs.readFileSync(__dirname+'/cw.js','utf8')+`;globalThis.__t={robot,interact,termSpot,doorRect,P,BOARD,ST_INST,factory,know,doorOpen,dlg,closeDialog,quiz,progress,wantedTrack,winRoom,enterRoom,exitRoom,get pkgRide(){return pkgRide},get guard(){return guard},get fade(){return fade},ROOMS,tryBoost,keys,updateRobot,get scene(){return scene},get swarm(){return swarm},blocked,nearTerminal,nearDoor,defense,initAudio,get voices(){return voices}};`);
+eval(fs.readFileSync(__dirname+'/cw.js','utf8')+`;globalThis.__t={robot,interact,termSpot,doorRect,P,BOARD,ST_INST,factory,know,doorOpen,dlg,closeDialog,quiz,progress,wantedTrack,winRoom,nodeRoom,N,enterRoom,exitRoom,get pkgRide(){return pkgRide},get guard(){return guard},get fade(){return fade},ROOMS,tryBoost,keys,updateRobot,get scene(){return scene},get swarm(){return swarm},blocked,nearTerminal,nearDoor,defense,initAudio,get voices(){return voices}};`);
 const tick=n=>{for(let i=0;i<n;i++){T+=1000/60; rafCb(T); if(global.__musicTick) global.__musicTick();}};
 const opts=()=>els.dlgOpts.children.map(c=>c.textContent||c.tag);
 const talkUntilOptions=()=>{ for(let i=0;i<60*40 && !t.dlg.optionsShown;i++) tick(1); };
@@ -83,5 +83,22 @@ let t;
  t.tryBoost(); y0=t.robot.x; tick(20); const boosted=t.robot.x-y0; t.tryBoost(); console.log('normal 30 frames:', normal.toFixed(0), '| boosted 20 frames:', boosted.toFixed(0), '| cooldown left:', t.robot.boostWait.toFixed(1), '| status:', els.st1.textContent.split(' · ').pop());
  t.keys.clear(); tick(60*5); console.log('after 5 s:', els.st1.textContent.split(' · ').pop());
  // run more loops inside the Window room to exercise its drawing
+ // ---- the Node room ----
+ { const sp=t.termSpot(t.P['A.node']); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions();
+   console.log('node door open before password?', !!t.doorOpen['A.node'], '| options:', opts().filter(o=>/password|quiz/i.test(o)).join(' | '));
+   typePw('portzero'); console.log('portzero -> door open A/B?', t.doorOpen['A.node'], t.doorOpen['B.node'], '| quiz option:', opts().filter(o=>/quiz/i.test(o)).join(''));
+   t.closeDialog(); }
+ console.log('nodeRoom A:', JSON.stringify({made:t.nodeRoom.A.made,dialed:t.nodeRoom.A.dialed,built:t.nodeRoom.A.built,book:t.nodeRoom.A.book}), '| B:', JSON.stringify({made:t.nodeRoom.B.made,dialed:t.nodeRoom.B.dialed,built:t.nodeRoom.B.built,book:t.nodeRoom.B.book}));
+ t.enterRoom(t.P['A.node']); console.log('enter node -> scene', t.scene.room, '| spawn blocked?', t.blocked(t.robot.x,t.robot.y));
+ for (const k in t.ST_INST.node.A){ const inst=t.ST_INST.node.A[k]; const sp=t.termSpot(inst); t.robot.x=sp.x; t.robot.y=sp.y; if(t.blocked(sp.x,sp.y)||t.nearTerminal()!==inst) console.log('BAD node terminal',k, t.blocked(sp.x,sp.y), t.nearTerminal()&&t.nearTerminal().id); }
+ console.log('node terminals checked');
+ for (const k in t.ST_INST.node.A){ const inst=t.ST_INST.node.A[k]; const sp=t.termSpot(inst); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions(); const o=els.dlgOpts.children.filter(c=>c.textContent&&/^\d+\. /.test(c.textContent)&&!/right now|Goodbye|Ride/.test(c.textContent)); for (const b of o){ b.onclick(); talkUntilOptions(); } els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('right now')).onclick(); talkUntilOptions(); t.closeDialog(); }
+ console.log('talked to every node station; asked:', [...t.know.asked].filter(k=>k.startsWith('node:')).length);
+ { const port=t.ST_INST.node.A.port, sp=t.termSpot(port); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions(); console.log('node port:', opts().filter(o=>/Ride/.test(o)).join(' | '));
+   els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('outgoing')).onclick(); let k=0; while(t.pkgRide&&k<60*120){ tick(1); k++; } console.log('outgoing ride frames:', k, '| guard', t.guard&&t.guard.state); tick(60*10); }
+ t.exitRoom();
+ { const sp=t.termSpot(t.P['A.node']); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions();
+   els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('Take the quiz')).onclick(); for(let i=0;i<60*20&&t.quiz.phase!=='ask';i++) tick(1);
+   console.log('node quiz:', takeQuiz([]).replace(/<[^>]+>/g,''), '| earned:', [...t.progress.earned]); els.quizOpts.children[0].onclick(); talkUntilOptions(); t.closeDialog(); }
  t.enterRoom(t.P['B.window']); tick(60*60); console.log('B window lines:', t.winRoom.B.lines.length, '| items now:', t.winRoom.B.items.length, '| 1 min inside OK');
 })().catch(e=>{console.error('ERR',e);process.exit(1)});

@@ -667,6 +667,165 @@ const WIN_DIALOGUE = {
     ],
   },
 };
+// Dialogue of the stations inside the Node (same rules as DIALOGUE).
+const NODE_DIALOGUE = {
+  door: {
+    greet: [['R', 'Hello. Are you a door?'], ['P', 'I am the listening socket. I stand open on one port and wait for knocks.']],
+    twin: [['P', 'The other Node has its own listening door, on its own port.']],
+    topics: [
+      { id: 'any', ask: 'Which address do you listen on?', lines: [
+        ['P', 'All of them. IPAddress.Any: every network this computer has.'] ] },
+      { id: 'stay', ask: 'Do you go away when someone comes in?', lines: [
+        ['P', 'No. I stay open the whole time the node runs.'],
+        ['P', 'Every knock that is accepted gets its own new socket. I stay here for the next one.'] ] },
+    ],
+  },
+  office: {
+    greet: [['R', 'Hello. Who are you?'], ['P', 'The port office. I belong to the operating system, not to Chatap.']],
+    twin: [['P', 'Every computer has one port office. Each copy of Chatap asks it for a port.']],
+    topics: [
+      { id: 'zero', ask: 'What did the Node ask you for?', lines: [
+        ['P', 'Port zero. It means: any port that is free.'],
+        ['P', 'I gave it a free one. The Window shows that number to the human.'] ] },
+      { id: 'why', ask: 'Why not always the same port?', after: 'zero', lines: [
+        ['P', 'A fixed port can already be in use. And two copies of Chatap on one computer would fight over it.'],
+        ['P', 'A free port always works.'] ] },
+    ],
+  },
+  shake: {
+    greet: [['R', 'Hello. You shake.'], ['P', 'Three knocks: SYN, SYN-ACK, ACK. The handshake.']],
+    twin: [['P', 'The other Node has a gate like me. On a real computer, it is the same operating system part for every program.']],
+    topics: [
+      { id: 'who', ask: 'Who does the handshake?', lines: [
+        ['P', 'The operating system. Chatap does not send these three packets itself.'] ] },
+      { id: 'when', ask: 'When does the Node hear about the knock?', lines: [
+        ['P', 'Only when the handshake is finished. Then accept() returns, or the connect finishes.'] ] },
+    ],
+  },
+  accept: {
+    greet: [['R', 'Hello. You go round and round.'], ['P', 'I am the accept loop. Accept, hand it over, wait for the next one.']],
+    twin: [['P', 'My twin goes round in the other Node.']],
+    topics: [
+      { id: 'wait', ask: 'Do you block while nobody knocks?', lines: [
+        ['P', 'No. I await. No thread stands still while I wait.'] ] },
+      { id: 'fail', ask: 'What if accepting fails?', lines: [
+        ['P', 'I write it to the log and go round again. One bad knock does not stop the loop.'] ] },
+      { id: 'log', ask: 'Do you tell anyone?', lines: [
+        ['P', 'The log: "incoming connection from" and the address. Then I give the connection to the handler builder.'] ] },
+    ],
+  },
+  press: {
+    greet: [['R', 'Hello. What do you make?'], ['P', 'Sockets. Every accepted knock gets a new socket from me.']],
+    twin: [['P', 'The other press makes sockets for the other Node.']],
+    topics: [
+      { id: 'new', ask: 'A new socket for each friend?', lines: [
+        ['P', 'Yes. The new socket is connected to that one friend.'],
+        ['P', 'It has the same port number as the listening door.'] ] },
+      { id: 'four', ask: 'How can many sockets share one port?', after: 'new', lines: [
+        ['P', 'A connection is known by four things: my IP, my port, their IP, their port.'],
+        ['P', 'Two friends never have the same four. That is the 4-tuple.'] ] },
+    ],
+  },
+  dialer: {
+    greet: [['R', 'Hello. You have a phone.'], ['P', 'I am the dialer: the client part. When the human clicks Connect, I knock on another door.']],
+    twin: [['P', 'The other dialer knocks for the other human.']],
+    topics: [
+      { id: 'socket', ask: 'Do you get a new socket from the press?', lines: [
+        ['P', 'No. My own socket becomes the connected one.'],
+        ['P', 'Only accepting makes a new socket. Connecting does not.'] ] },
+      { id: 'port', ask: 'Which port do you knock from?', lines: [
+        ['P', 'Any free one that the operating system gives me. An ephemeral port. Nobody needs to know it before.'] ] },
+      { id: 'fail', ask: 'What if nobody answers?', lines: [
+        ['P', 'I write "failed" to the log and tell the Window. The human reads: cannot connect.'] ] },
+    ],
+  },
+  hatch: {
+    greet: [['R', 'Hello. Where do you lead?'], ['P', 'Out to the network. Knocks go out through me, and answers come back.']],
+    twin: [['P', 'The other Node has a hatch too. The knocks meet on the cable.']],
+    topics: [
+      { id: 'path', ask: 'What is behind you?', lines: [
+        ['P', 'The operating system and the network card. Then the cable, then the other computer.'] ] },
+    ],
+  },
+  builder: {
+    greet: [['R', 'Hello. You are building something.'], ['P', 'A ConnectionHandler. One for every connection, in or out.']],
+    twin: [['P', 'My twin builds handlers for the other Node.']],
+    topics: [
+      { id: 'give', ask: 'What do you give each handler?', lines: [
+        ['P', 'Its socket, the node ID, the log, the store,'],
+        ['P', 'a hello timeout of 10 seconds, and the keepalive settings: 60 seconds, 10 seconds, 3 probes.'],
+        ['P', 'The handler turns keepalive on for its own socket.'] ] },
+      { id: 'one', ask: 'Why one handler for each connection?', lines: [
+        ['P', 'If one conversation breaks, the others go on.'] ] },
+      { id: 'then', ask: 'And then?', lines: [
+        ['P', 'I ring the bell first. Then I start the handler, and it says hello.'] ] },
+    ],
+  },
+  bell: {
+    greet: [['R', 'Hello. Ding?'], ['P', 'Ding. I am ConversationStarted. I ring before a new handler says hello.']],
+    twin: [['P', 'The other bell rings in the other Node.']],
+    topics: [
+      { id: 'why', ask: 'Why ring before the hello?', lines: [
+        ['P', 'So the Window can start listening to the handler first. Then no message and no event is missed.'] ] },
+    ],
+  },
+  out: {
+    greet: [['R', 'Hello. Where do the handlers go?'], ['P', 'Out through me, to do their own work.']],
+    twin: [['P', 'The other pipe sends handlers out in the other Node.']],
+    topics: [
+      { id: 'see', ask: 'Does the Node see them again?', lines: [
+        ['P', 'Yes, in the friends book. A handler is written in when its friend says hello.'] ] },
+    ],
+  },
+  book: {
+    greet: [['R', 'Hello. You have a lock on you.'], ['P', 'I am the friends book. One line for each friend: their ID, and their handler.']],
+    twin: [['P', 'The other Node keeps its own book.']],
+    topics: [
+      { id: 'when', ask: 'When is a friend written in?', lines: [
+        ['P', 'When their hello arrives. Before the hello, nobody knows who they are.'] ] },
+      { id: 'twice', ask: 'What if the same friend connects twice?', lines: [
+        ['P', 'The newest connection wins. I write in the new handler, and the old one is closed: "the peer connected again".'],
+        ['P', 'The old one is often already dead, and often only one side knows it.'] ] },
+      { id: 'lock', ask: 'Why the lock?', lines: [
+        ['P', 'Handlers run on different threads. The lock lets only one hand write in me at a time.'] ] },
+      { id: 'out', ask: 'When is a friend crossed out?', after: 'when', lines: [
+        ['P', "When their handler disconnects. But only if it is still the handler in the book."] ] },
+    ],
+  },
+  chute: {
+    greet: [['R', 'Hello. Another chute?'], ['P', "This one goes to the LogWriter. The Node's own lines go down me."]],
+    twin: [['P', 'The other chute goes to the other LogWriter.']],
+    topics: [
+      { id: 'what', ask: 'Which lines?', lines: [
+        ['P', '"listening on port", "incoming connection from", "outgoing connection to", and failures.'],
+        ['P', 'They have no friend ID, so they end up in node.txt.'] ] },
+    ],
+  },
+  stop: {
+    greet: [['R', 'Hello. A big red switch.'], ['P', 'The stop switch. It is used when the program ends.']],
+    twin: [['P', 'The other Node has a switch like me.']],
+    topics: [
+      { id: 'what', ask: 'What happens when you are pulled?', lines: [
+        ['P', 'The accept loop stops, the listening door closes, and every open conversation is closed.'] ] },
+    ],
+  },
+};
+const NODE_NOW = {
+  door: n => [N[n].listening ? `Open on port ${INFO[n].port}.` : 'Not open yet.'],
+  office: n => [`Port ${INFO[n].port} is given to this Node.`],
+  shake: () => [tcp === 'up' ? 'Done. The connection is up.' : 'Waiting for the next handshake.'],
+  accept: () => ['Waiting for a knock. Not blocking anything.'],
+  press: n => [nodeRoom[n].made ? `I made ${nodeRoom[n].made} socket${nodeRoom[n].made > 1 ? 's' : ''} so far.` : 'Nothing made yet.'],
+  dialer: n => [nodeRoom[n].dialed ? `I knocked ${nodeRoom[n].dialed} time${nodeRoom[n].dialed > 1 ? 's' : ''}.` : 'Waiting for a Connect click.'],
+  hatch: () => ['Open to the network.'],
+  builder: n => [`I built ${nodeRoom[n].built} handler${nodeRoom[n].built === 1 ? '' : 's'}.`],
+  bell: () => ['Quiet.'],
+  out: () => ['Waiting for the next handler.'],
+  book: n => [nodeRoom[n].book.length ? `One friend: ${nodeRoom[n].book[0]}.` : 'Empty. Nobody has said hello.'],
+  chute: n => [`${N[n].logLines} lines went down so far, from the Node and the handlers.`],
+  stop: () => ['Up. The program is running.'],
+};
+
 // Live answers of the Window stations to "What are you doing right now?"
 const WIN_NOW = {
   address: n => [`Showing ${INFO[n].ip} : ${INFO[n].port}.`],
@@ -721,6 +880,29 @@ const QUIZZES = {
       'The glass reads the network every second', 'The Codec writes it on the glass'] },
     { q: 'Which time does the glass show next to a message?', a: [
       'Local time, changed from the UTC time that is kept', 'UTC time', "The friend's local time", 'The time the message was typed, in seconds'] },
+  ],
+  node: [
+    { q: 'Which port does the Node ask the operating system for?', a: [
+      'Port 0: any free port', 'Port 80', 'Always port 51234', "The friend's port"] },
+    { q: 'Why does the Node not use one fixed port?', a: [
+      'A fixed port can already be in use, and two copies on one computer would fight over it',
+      'Low ports are faster', 'Port 0 is encrypted', 'So friends can guess the port'] },
+    { q: 'Who does the SYN, SYN-ACK, ACK handshake?', a: [
+      'The operating system', 'The Node sends each packet itself', 'The ConnectionHandler', 'The Window'] },
+    { q: 'What does accept() give the Node?', a: [
+      'A new socket, connected to that one friend', 'The listening socket itself', 'A handler that has already said hello', "Only the friend's ID"] },
+    { q: 'After a knock is accepted, what does the listening socket do?', a: [
+      'It stays open and waits for the next knock', 'It closes', 'It becomes the socket of the conversation', 'It moves to a new port'] },
+    { q: 'Many accepted sockets use the same port. How are their connections told apart?', a: [
+      'By four things: my IP, my port, their IP, their port', 'Each one gets its own new port number', "By the friend's ID", 'They cannot share a port'] },
+    { q: 'The Node connects out to a friend. Which socket becomes the connected one?', a: [
+      "The Node's own client socket. Only accept makes a new socket", 'A new socket from the socket press', 'The listening socket', "The friend's socket moves over"] },
+    { q: 'What does the Node build for every connection, in or out?', a: [
+      'One ConnectionHandler', 'One Window', 'One LogWriter', 'One listening socket'] },
+    { q: 'Why does the ConversationStarted bell ring before the handler says hello?', a: [
+      'So the Window can listen to the handler first and miss nothing', 'So the hello is sent faster', 'So the hello is written to the log', 'Because the friend needs the bell'] },
+    { q: 'The same friend connects again. What does the Node do?', a: [
+      'The newest connection wins, and the old one is closed', 'It refuses the new connection', 'It keeps both connections', 'It asks the human which one to keep'] },
   ],
   log: [
     { q: 'Who drops papers into the mail slots of the LogWriter?', a: [
@@ -963,6 +1145,7 @@ const endpoint = n => n === 'A' ? `${INFO.A.ip}:${INFO.A.outPort}` : `${INFO.B.i
 // peer = true: the line goes to the conversation file, else to node.txt.
 function* logLine(n, from, text, peer = false) {
   const line = `${utcStamp()}  ${text}`;
+  if (from === 'node') nodeRoom[n].logHit = simTime + 600;
   yield send([`${n}.${from}`, `${n}.log`], 'log', { at: { 1: { fn: () => { N[n].logLines++; intake(n, from === 'node' ? 'node' : 'handler', peer, line); } } } });
 }
 function* typeInto(n, text) {
@@ -976,7 +1159,7 @@ function* hello(x) {
   yield send([`${x}.handler`, `${x}.codec`, `${y}.codec`, `${y}.handler`], 'hello', { at: {
     1: { say: `frame: ${hex4(len)} + ${len} B`, fn: () => { N[x].lastFrame = len; } },
     2: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; } },
-    3: { say: 'hello v1 ✓ → Ready', fn: () => { N[y].handlerState = 'Ready'; spawn(logLine(y, 'handler', `hello from ${endpoint(x)}: ready`, true)); } },
+    3: { say: 'hello v1 ✓ → Ready', fn: () => { N[y].handlerState = 'Ready'; nodeBookIn(y); spawn(logLine(y, 'handler', `hello from ${endpoint(x)}: ready`, true)); } },
   } });
 }
 function* ready(n) {
@@ -1018,6 +1201,7 @@ function* scenario() {
     floatAt('A.window', 'Connect');
     winConnect('A');
     yield send(['A.window', 'A.node'], 'cmd', { label: 'connect' });
+    nodeDial('A');
     N.A.typing = '';
     spawn(logLine('A', 'node', `outgoing connection to ${INFO.B.ip}:${INFO.B.port}`));
 
@@ -1033,6 +1217,7 @@ function* scenario() {
     floatAt('A.node', 'connected');
     for (const n of ['A', 'B']) { N[n].handlerAlive = true; N[n].handlerState = 'WaitingForHello'; }
     winTabOpen('A');   // an outgoing conversation shows its tab at once
+    nodeAccept('B'); nodeConnected('A');
     yield all(
       send(['A.node', 'A.handler'], 'cmd', { label: 'socket' }),
       send(['B.node', 'B.handler'], 'cmd', { label: 'socket' }),
@@ -1049,7 +1234,7 @@ function* scenario() {
     // A closes the conversation. FIN goes one way, then the other.
     floatAt('A.window', 'close conversation');
     yield send(['A.window', 'A.handler'], 'cmd', { label: 'close' });
-    N.A.handlerState = 'Closed'; N.A.tab = null; winEnd('A');
+    N.A.handlerState = 'Closed'; N.A.tab = null; winEnd('A'); nodeBookOut('A');
     spawn(logLine('A', 'handler', 'closed: LocalClose (closed by this node)', true));
     yield send(['A.handler', 'A.codec', 'B.codec', 'B.handler'], 'fin', { label: 'FIN', at: {
       2: { say: 'read → 0 bytes → end' },
@@ -1059,7 +1244,7 @@ function* scenario() {
       } },
     } });
     yield send(['B.handler', 'B.window'], 'cmd', { label: 'Disconnected', at: {
-      1: { fn: () => { N.B.chat.push({ from: 'sys', text: 'Node A left.' }); winEnd('B'); } },
+      1: { fn: () => { N.B.chat.push({ from: 'sys', text: 'Node A left.' }); winEnd('B'); nodeBookOut('B'); } },
     } });
     yield send(['B.handler', 'B.codec', 'A.codec', 'A.handler'], 'fin', { label: 'FIN', at: {
       3: { say: 'other direction closed' },
@@ -1295,6 +1480,92 @@ ROOMS.window = {
   ],
   update: updateWin,
   drawBack: drawWinBack, drawFront: drawWinFront,   // drawStation: WIN_DRAW, set where it is defined
+};
+
+// ---------- the Node room: a switchboard factory. Each station stands for
+// one thing Node.cs really does (and the operating system parts it uses).
+const NODE_W = 2400, NODE_H = 1400;
+const NODE_STATIONS = [
+  { id: 'door',    name: 'Listening door',    plate: 'LISTEN',  x: 20,   y: 120, w: 200, h: 260, block: true, term: { side: 'right',  at: 0.85 } },
+  { id: 'office',  name: 'Port office (OS)',  plate: 'OS PORT', x: 260,  y: 420, w: 240, h: 120, block: true, term: { side: 'right',  at: 0.5 } },
+  { id: 'shake',   name: 'Handshake gate (OS)', plate: 'SHAKE', x: 560,  y: 180, w: 200, h: 160, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'accept',  name: 'Accept loop',       plate: 'ACCEPT',  x: 900,  y: 160, w: 260, h: 200, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'press',   name: 'Socket press',      plate: 'PRESS',   x: 1300, y: 160, w: 220, h: 200, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'bell',    name: 'Started bell',      plate: 'BELL',    x: 2080, y: 160, w: 180, h: 160, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'hatch',   name: 'Network hatch',     plate: 'HATCH',   x: 20,   y: 560, w: 120, h: 180, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'dialer',  name: 'Outgoing dialer',   plate: 'DIALER',  x: 400,  y: 580, w: 260, h: 160, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'builder', name: 'Handler builder',   plate: 'BUILDER', x: 1680, y: 400, w: 300, h: 220, block: true, term: { side: 'bottom', at: 0.6 } },
+  { id: 'out',     name: 'To the handlers',   plate: 'OUT',     x: 2180, y: 640, w: 180, h: 160, block: true, term: { side: 'top',    at: 0.5 } },
+  { id: 'book',    name: 'Friends book',      plate: 'BOOK',    x: 1300, y: 860, w: 360, h: 260, block: true, term: { side: 'top',    at: 0.5 } },
+  { id: 'stop',    name: 'Stop switch',       plate: 'STOP',    x: 800,  y: 1000, w: 200, h: 160, block: true, term: { side: 'top',   at: 0.5 } },
+  { id: 'chute',   name: 'To the LogWriter',  plate: 'LOG',     x: 2180, y: 960, w: 180, h: 160, block: true, term: { side: 'left',   at: 0.5 } },
+];
+// Belts. A knock comes in through the door; a new socket goes on to the builder.
+const NODE_KNOCK_IN = [{ x: 0, y: 250 }, { x: 120, y: 250 }, { x: 660, y: 260 }, { x: 1030, y: 260 }, { x: 1410, y: 260 }];
+const NODE_TO_OUT = [{ x: 1830, y: 510 }, { x: 2050, y: 510 }, { x: 2270, y: 720 }];
+const NODE_NEW_SOCKET = [{ x: 1410, y: 260 }, { x: 1590, y: 260 }, { x: 1830, y: 400 }, ...NODE_TO_OUT];
+// A knock goes out through the hatch; the dialer's own socket goes on to the builder.
+const NODE_DIAL = [{ x: 530, y: 660 }, { x: 140, y: 660 }, { x: 0, y: 660 }];
+const NODE_OWN_SOCKET = [{ x: 0, y: 660 }, { x: 140, y: 660 }, { x: 530, y: 660 }, { x: 1600, y: 660 }, { x: 1680, y: 510 }, ...NODE_TO_OUT];
+const NODE_SPEED = 420;
+function freshNodeRoom() { return { items: [], book: [], made: 0, dialed: 0, built: 0, bellHit: 0, logHit: 0 }; }
+const nodeRoom = { A: freshNodeRoom(), B: freshNodeRoom() };
+// marks: [distance, fn] pairs run once when the item passes that distance.
+function nodeItem(n, kind, path, marks = []) { nodeRoom[n].items.push({ kind, path, len: polyLen(path), d: 0, marks }); }
+const BUILDER_AT = p => polyLen(p.slice(0, p.length - NODE_TO_OUT.length + 1));   // distance to the builder on a path
+function built(n) { const r = nodeRoom[n]; r.built++; r.bellHit = simTime + 900; }
+// Events from the scenario (the same moments as in Node.cs).
+function nodeDial(n) { nodeRoom[n].dialed++; nodeItem(n, 'knock', NODE_DIAL); }
+function nodeConnected(n) { nodeItem(n, 'socket', NODE_OWN_SOCKET, [[BUILDER_AT(NODE_OWN_SOCKET), () => built(n)]]); }
+function nodeAccept(n) {
+  nodeItem(n, 'knock', NODE_KNOCK_IN, [[polyLen(NODE_KNOCK_IN), () => {
+    nodeRoom[n].made++;
+    nodeItem(n, 'socket', NODE_NEW_SOCKET, [[BUILDER_AT(NODE_NEW_SOCKET), () => built(n)]]);
+  }]]);
+}
+function nodeBookIn(n) { nodeRoom[n].book = [`${INFO[other(n)].id.slice(0, 8)} → handler`]; }
+function nodeBookOut(n) { nodeRoom[n].book = []; }
+function updateNodeRoom(n, dt) {
+  const r = nodeRoom[n];
+  for (const it of r.items.slice()) {
+    it.d = Math.min(it.len, it.d + NODE_SPEED * dt);
+    for (const m of it.marks) if (!m.done && it.d >= m[0]) { m.done = true; m[1](); }
+    if (it.d >= it.len) it.done = true;
+  }
+  r.items = r.items.filter(it => !it.done);
+}
+
+ROOMS.node = {
+  name: 'Node', w: NODE_W, h: NODE_H,
+  spawn: { x: 130, y: NODE_H - 200 },
+  exit: { x: 70, y: NODE_H - 26, w: 120, h: 26 },
+  door: { at: 0.75 },
+  enterThought: 'Phones, doors and a big book. Everyone here is waiting for a knock.',
+  stations: NODE_STATIONS, dialogue: NODE_DIALOGUE, now: NODE_NOW,
+  rides: [
+    { name: 'an incoming knock', stops: [
+      { x: 0, y: 250 },
+      { x: 120, y: 250, say: n => `Knock knock: SYN! Someone dialed port ${INFO[scene.node].port}. The listening door hears it.` },
+      { x: 660, y: 260, say: 'The handshake gate. The operating system answers SYN-ACK and gets the ACK. Chatap has not heard anything yet.' },
+      { x: 1030, y: 260, say: 'accept() returns. The accept loop writes "incoming connection" to the log, hands me on, and goes back to waiting.' },
+      { x: 1410, y: 260, say: 'The socket press makes a new socket, only for this friend. The listening door stays open for the next knock.' },
+      { x: 1590, y: 260 }, { x: 1830, y: 400 },
+      { x: 1830, y: 510, say: 'The handler builder: a new ConnectionHandler gets my socket, the ID, the log, the store, a 10 s hello timeout and keepalive 60/10/3.' },
+      { x: 2050, y: 510 }, { x: 2170, y: 330, say: 'Ding! ConversationStarted. The Window starts listening to the new handler before it says hello.' },
+      { x: 2270, y: 720, say: 'Out to the handlers. The handler says hello. When the friend\'s hello comes back, the friends book gets a new line.' },
+    ] },
+    { name: 'an outgoing call', stops: [
+      { x: 530, y: 660, say: () => `The human clicked Connect. The dialer takes its own socket and knocks on ${INFO[other(scene.node)].ip}:${INFO[other(scene.node)].port}.` },
+      { x: 140, y: 660, say: 'Out through the network hatch, from a free ephemeral port. The operating system does the handshake.' },
+      { x: 530, y: 660, say: 'Connected! The dialer\'s own socket is now the connection. No new socket: only accept makes one.' },
+      { x: 1600, y: 660 },
+      { x: 1680, y: 510, say: 'The handler builder: one ConnectionHandler for this connection too, with the same settings.' },
+      { x: 2050, y: 510 }, { x: 2170, y: 330, say: 'Ding! ConversationStarted. The Window shows the tab at once: "connecting".' },
+      { x: 2270, y: 720, say: 'Out to the handlers. Both sides say hello first, then the chat can begin.' },
+    ] },
+  ],
+  update: updateNodeRoom,
+  drawBack: drawNodeBack, drawFront: drawNodeFront,   // drawStation: NODE_DRAW, set where it is defined
 };
 
 // ---------- the room engine ----------
@@ -2840,6 +3111,123 @@ function drawWinFront(n) {
     ctx.fillStyle = it.dir === 'out' ? '#fff4c0' : '#e0f0ff'; ctx.fillRect(p.x - 13, p.y - 9, 26, 18);
     ctx.strokeStyle = C.lo; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x - 13, p.y - 9); ctx.lineTo(p.x, p.y + 1); ctx.lineTo(p.x + 13, p.y - 9); ctx.stroke();
     if (it.stamped) { ctx.fillStyle = '#c00000'; ctx.fillRect(p.x + 4, p.y + 2, 8, 5); }
+  }
+}
+
+// ---------- Node room drawing ----------
+function drawNodeBack(n) {
+  const roll = (simTime / 12) % 30;
+  for (const pts of [NODE_KNOCK_IN, NODE_NEW_SOCKET, NODE_OWN_SOCKET]) {
+    strokePts(pts, 30, '#1a1a1a'); strokePts(pts, 22, '#3c3c3c');
+    ctx.setLineDash([6, 24]); ctx.lineDashOffset = -roll; strokePts(pts, 22, '#5a5a5a'); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  }
+}
+// A station glows while a knock or a socket passes through it.
+function nodeHot(s, n) {
+  return nodeRoom[n].items.some(it => { const p = pointAt(it.path, it.d); return p.x > s.x - 20 && p.x < s.x + s.w + 20 && p.y > s.y - 20 && p.y < s.y + s.h + 20; });
+}
+function nodeBox(s, n, title = s.name) { drawStationBox(s, title); if (nodeHot(s, n)) { ctx.strokeStyle = '#ffe000'; ctx.lineWidth = 6; ctx.strokeRect(s.x - 4, s.y - 4, s.w + 8, s.h + 8); } }
+const NODE_DRAW = {
+  door(s, n) {
+    nodeBox(s, n);
+    ctx.fillStyle = N[n].listening ? '#101010' : '#808080'; ctx.fillRect(s.x + 40, s.y + 50, s.w - 80, s.h - 100);
+    if (N[n].listening) { ctx.fillStyle = 'rgba(255,220,0,0.25)'; ctx.fillRect(s.x + 46, s.y + 56, s.w - 92, s.h - 112); }
+    txt(N[n].listening ? `:${INFO[n].port}` : 'closed', s.x + s.w / 2, s.y + s.h - 24, 22, N[n].listening ? C.navy : C.lo, true, 'center');
+  },
+  office(s, n) {
+    nodeBox(s, n); bevel(s.x + 12, s.y + 34, s.w - 24, s.h - 44, false, '#fff', 2);
+    txt('asked: port 0', s.x + 22, s.y + 60, 14, '#000');
+    txt(`gave: ${INFO[n].port}`, s.x + 22, s.y + 86, 18, C.navy, true);
+  },
+  shake(s, n) {
+    nodeBox(s, n);
+    const hot = nodeHot(s, n), k = hot ? Math.sin(performance.now() / 80) * 8 : 0;
+    ['SYN', 'SYN-ACK', 'ACK'].forEach((w, i) => txt(w, s.x + s.w / 2 + (i === 1 ? -k : k), s.y + 64 + i * 28, 16, hot ? '#c00000' : '#000', true, 'center'));
+  },
+  accept(s, n) {
+    nodeBox(s, n);
+    const cx = s.x + s.w / 2, cy = s.y + 116, a = simTime / 600;
+    ctx.strokeStyle = '#303030'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(cx, cy, 46, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#e8a000'; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 46, cy + Math.sin(a) * 46, 9, 0, Math.PI * 2); ctx.fill();
+    txt('await', cx, cy + 5, 14, '#000', true, 'center');
+  },
+  press(s, n) {
+    nodeBox(s, n);
+    const hot = nodeHot(s, n);
+    ctx.fillStyle = '#505050'; ctx.fillRect(s.x + s.w / 2 - 30, s.y + 40, 60, hot ? 70 : 40);
+    ctx.fillStyle = '#202020'; ctx.fillRect(s.x + 30, s.y + 150, s.w - 60, 14);
+    txt(`made: ${nodeRoom[n].made}`, s.x + s.w / 2, s.y + s.h - 10, 13, '#000', true, 'center');
+  },
+  bell(s, n) {
+    nodeBox(s, n);
+    const ring = nodeRoom[n].bellHit > simTime, a = ring ? Math.sin(performance.now() / 50) * 0.35 : 0, cx = s.x + s.w / 2, cy = s.y + 50;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(a);
+    ctx.fillStyle = '#d8b000'; ctx.beginPath(); ctx.moveTo(-34, 60); ctx.quadraticCurveTo(-30, 0, 0, 0); ctx.quadraticCurveTo(30, 0, 34, 60); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+    txt('ConversationStarted', cx, s.y + s.h - 12, 11, '#000', true, 'center');
+  },
+  hatch(s, n) {
+    nodeBox(s, n, 'Hatch');
+    ctx.fillStyle = '#101010'; ctx.fillRect(s.x + 16, s.y + 50, s.w - 32, s.h - 70);
+    txt('network', s.x + s.w / 2, s.y + s.h - 6, 12, '#000', true, 'center');
+  },
+  dialer(s, n) {
+    nodeBox(s, n);
+    const cx = s.x + 70, cy = s.y + 100;
+    ctx.fillStyle = '#202020'; ctx.beginPath(); ctx.arc(cx, cy, 36, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * 0.55; ctx.fillStyle = '#d0d0d0'; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 24, cy + Math.sin(a) * 24, 5, 0, Math.PI * 2); ctx.fill(); }
+    txt(`knocks: ${nodeRoom[n].dialed}`, s.x + 120, s.y + 96, 15, '#000', true);
+    txt('client part', s.x + 120, s.y + 118, 13, C.lo);
+  },
+  builder(s, n) {
+    nodeBox(s, n);
+    const hot = nodeHot(s, n), a = hot ? Math.sin(performance.now() / 70) : 0;
+    ctx.fillStyle = '#808080'; ctx.fillRect(s.x + 30, s.y + 130, s.w - 60, 50);
+    ctx.strokeStyle = '#202020'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(s.x + s.w / 2, s.y + 40); ctx.lineTo(s.x + s.w / 2 + a * 20, s.y + 120); ctx.stroke();
+    txt(`handlers built: ${nodeRoom[n].built}`, s.x + s.w / 2, s.y + s.h - 14, 14, '#000', true, 'center');
+  },
+  out(s, n) {
+    nodeBox(s, n, 'To handlers');
+    ctx.fillStyle = '#606060'; ctx.fillRect(s.x + 20, s.y + 70, 90, 50);
+    ctx.fillStyle = '#202020'; ctx.fillRect(s.x + 100, s.y + 78, 70, 34);
+  },
+  book(s, n) {
+    nodeBox(s, n); bevel(s.x + 14, s.y + 34, s.w - 28, s.h - 48, false, '#fffbe8', 2);
+    txt('friend ID → handler', s.x + 28, s.y + 62, 14, C.lo, true);
+    const b = nodeRoom[n].book;
+    if (b.length) b.forEach((l, i) => txt(l, s.x + 28, s.y + 96 + i * 26, 18, C.navy, true)); else txt('(nobody yet)', s.x + 28, s.y + 96, 16, C.lo);
+    // the lock
+    ctx.strokeStyle = '#806000'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(s.x + s.w - 44, s.y + s.h - 60, 12, Math.PI, 0); ctx.stroke();
+    ctx.fillStyle = '#c8a000'; ctx.fillRect(s.x + s.w - 60, s.y + s.h - 60, 32, 26);
+  },
+  stop(s, n) {
+    nodeBox(s, n);
+    ctx.fillStyle = '#c00000'; ctx.beginPath(); ctx.arc(s.x + s.w / 2, s.y + 96, 34, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke();
+    txt('UP', s.x + s.w / 2, s.y + 102, 16, '#fff', true, 'center');
+  },
+  chute(s, n) {
+    nodeBox(s, n, 'To LogWriter');
+    ctx.fillStyle = nodeRoom[n].logHit > simTime ? '#ffe000' : '#606060'; ctx.fillRect(s.x + 20, s.y + 70, 90, 50);
+    ctx.fillStyle = '#202020'; ctx.fillRect(s.x + 100, s.y + 78, 70, 34);
+    txt('node.txt', s.x + s.w / 2, s.y + 150, 13, '#000', true, 'center');
+  },
+};
+ROOMS.node.drawStation = NODE_DRAW;
+// In front of the stations: knocks and sockets.
+function drawNodeFront(n) {
+  for (const it of nodeRoom[n].items) {
+    const p = pointAt(it.path, it.d);
+    if (it.kind === 'knock') {
+      ctx.fillStyle = C.dk; ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff9000'; ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, Math.PI * 2); ctx.fill();
+      txt('SYN', p.x, p.y + 4, 10, '#000', true, 'center');
+    } else {
+      ctx.fillStyle = C.dk; ctx.fillRect(p.x - 16, p.y - 12, 32, 24);
+      ctx.fillStyle = '#4080ff'; ctx.fillRect(p.x - 14, p.y - 10, 28, 20);
+      ctx.fillStyle = '#c0c0c0'; ctx.fillRect(p.x + 14, p.y - 7, 8, 4); ctx.fillRect(p.x + 14, p.y + 3, 8, 4);
+    }
   }
 }
 
