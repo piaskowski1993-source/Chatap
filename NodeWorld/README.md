@@ -8,8 +8,6 @@ the Codec, the ConversationStore and the LogWriter. Packets move along the
 wires in the same order as in the real app, and the TCP cable joins the two
 boards. Drive to a machine's terminal and talk to it to learn what it does.
 
-> Work in progress. Parts of this file are placeholders until the game is done.
-
 ## Goal
 
 Explore the machines one by one. Each machine's terminal has a quiz about
@@ -20,6 +18,13 @@ machine's terminal, choose "Input the password" to open its door.
 
 Earned passwords also appear on the password board in the top-left corner
 of Node A. Progress is not saved when you close the page.
+
+After the last machine, the antibodies catch the robot and demand proof that
+it is part of the machine: 10 correct answers to general questions about the
+whole system. Every mistake pushes the robot closer to the edge of the board;
+5 mistakes throw it into cyberspace. It comes back after 30 seconds, and is
+tested again the next time it leaves a machine. Pass, and the robot wears the
+**node_watcher** tag.
 
 ## How to play
 
@@ -54,12 +59,15 @@ not Chatap behaviour:
   throws the robot out of a factory is a game rule.
 - **The traffic cop.** Boost into a machine and an antibody in a police cap
   tells you off. Pure game rule.
+- **The identity check and cyberspace.** The capture, the push to the edge and
+  the fall are the game's ending, not anything Chatap does.
 - **Sound.** Music, modem noise and packet sounds are decoration.
 
 ## Development
 
 Open `index.html?test` (or `index.html#test`) to play in test mode: every quiz question gets an extra
-answer **F** (or press the F key) that always counts as correct.
+answer **F** (or press the F key) that always counts as correct. The toolbar
+also gets an **Ending (test)** button that starts the ending at once.
 
 `dev/harness.js` runs the page script in Node.js with fake browser objects and
 checks the main behaviours:

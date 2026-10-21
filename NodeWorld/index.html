@@ -104,6 +104,8 @@
     width: min(660px, calc(100% - 16px)); max-height: calc(100% - 16px); display: flex; flex-direction: column;
   }
   .quiz[hidden] { display: none; }
+  /* during the identity check the window sits low, so the robot and the antibodies stay visible */
+  .quiz.low { top: auto; bottom: 8px; transform: translateX(-50%); max-height: 55%; }
   .qbody { padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
   .qnum { font-weight: 600; color: var(--navy); }
   .qtext { padding: 10px 12px; font-size: 18px; line-height: 1.4; }
@@ -136,6 +138,7 @@
     </label>
     <button class="w95" id="btnLayout">Reset layout</button>
     <button class="w95" id="btnSound">Sound: on</button>
+    <button class="w95" id="btnEnding" hidden>Ending (test)</button>
     <span class="hint">Arrows / WASD: drive · E: terminal / door / cable · Shift: boost · Space: next line · 1–4: choose · click: drive there · drag: move a machine</span>
   </div>
   <div class="stage" id="stage">
@@ -1444,6 +1447,66 @@ const QUIZZES = {
   ],
 };
 
+// =====================================================================
+// THE ENDING — edit freely. After the last quiz, the antibodies catch the
+// robot. It needs FINALE_NEEDED correct answers; FINALE_STRIKES mistakes
+// throw it off the board. Questions are about the whole system and are
+// not the same as the machine quizzes. The first answer is the right one.
+// =====================================================================
+const FINALE_NEEDED = 10, FINALE_STRIKES = 5, REASSEMBLE_SECONDS = 30;
+const FINALE_INTRO = [
+  ['A', 'HALT. Unknown process detected outside its factory.'],
+  ['R', 'I am not a virus! I have been inside every machine.'],
+  ['A', 'Every process says that. Prove that you are part of the machine.'],
+  ['A', `Answer ${FINALE_NEEDED} questions correctly. ${FINALE_STRIKES} mistakes, and you go overboard.`],
+];
+// What the antibodies say after each mistake. They sound more like a machine every time.
+const FINALE_PUSH_LINES = ['Establishing contact.', 'Proving identity.', 'Debugging initialized.', 'Safety protocol in progress.', 'Process rejected. Ejecting.'];
+const FINALE_QUESTIONS = [
+  { q: 'The human presses Send. Which way does the message go?', a: [
+    'Window → ConnectionHandler → Codec → cable → Codec → ConnectionHandler → Window', 'Window → Node → LogWriter → cable → Window',
+    'Window → cable → Window', 'Window → ConversationStore → cable → ConversationStore → Window'] },
+  { q: 'Which part waits for new connections from other nodes?', a: [
+    'The Node', 'The Window', 'The Codec', 'The ConversationStore'] },
+  { q: 'Which part owns the socket of one conversation?', a: [
+    'Its ConnectionHandler', 'The Node', 'The Window', 'The LogWriter'] },
+  { q: 'Which part turns a message into bytes with a length in front?', a: [
+    'The Codec', 'The ConnectionHandler', 'The Window', 'The operating system'] },
+  { q: 'Which two parts both use one belt (a queue) and one writer?', a: [
+    'The LogWriter and the ConversationStore', 'The Window and the Codec', 'The Node and the Codec', 'The ConnectionHandler and the Window'] },
+  { q: 'Where is the text of a chat message kept on the disk?', a: [
+    "In the ConversationStore's file for that friend", 'In node.txt', "In the LogWriter's file for that friend", 'Nowhere'] },
+  { q: 'Who may change what the human sees?', a: [
+    'Only the UI thread', 'Any thread that has news', 'The ConnectionHandler', 'The Codec'] },
+  { q: 'Two nodes have just connected. What do both send first?', a: [
+    'A hello with their ID and version', 'A chat message', 'Their IP address', 'A FIN'] },
+  { q: 'How is Chatap built?', a: [
+    'Peer-to-peer: every node listens and every node can connect', 'One central server that all clients talk to',
+    'Only one node may listen', 'The nodes take turns being the server'] },
+  { q: 'Which transport does one conversation use?', a: [
+    'One TCP connection', 'UDP packets', 'One TCP connection for each message', 'HTTP requests'] },
+  { q: 'How does a node learn that the friend closed the conversation?', a: [
+    "The friend's FIN arrives, and the read gives 0 bytes", 'A "bye" chat message', 'The friend\'s Window sends a signal', 'It cannot know'] },
+  { q: "The friend's computer dies without a FIN. How does the node notice?", a: [
+    'TCP keepalive probes get no answer (about 90 s)', 'It never notices', 'The Codec sees an empty message', 'The LogWriter tells it'] },
+  { q: 'What kind of lines are in node.txt?', a: [
+    'Lines about the node itself, like "listening on port" and new connections', 'Every chat message', 'The JSON of every frame', 'Only errors'] },
+  { q: 'Which time do messages and logs keep?', a: [
+    'UTC', 'The local time of each computer', "The friend's local time", 'The time since Chatap started'] },
+  { q: 'Why do the LogWriter and the ConversationStore put lines on a queue first?', a: [
+    'So nobody waits for the disk, and one writer keeps lines from mixing', 'To make the files smaller', 'To encrypt the lines', 'To send the lines to the friend'] },
+  { q: 'The disk is full. What happens to the chat?', a: [
+    'It goes on, without a log or without saving', 'It stops at once', 'It waits until there is space', 'The program closes'] },
+  { q: 'How big can one message be?', a: [
+    '65,536 bytes of JSON', '1,000 letters', 'Any size', '4 bytes'] },
+  { q: 'Who chooses the port a node listens on?', a: [
+    'The operating system: the node asks for port 0', 'The human types it', 'The friend', 'It is always 51234'] },
+  { q: 'Which part is made new for every conversation?', a: [
+    'A ConnectionHandler', 'The Node', 'The Codec', 'The LogWriter'] },
+  { q: 'The human sends a text before the friend\'s hello has arrived. What happens?', a: [
+    'It waits, and is sent right after the hello', 'It is lost', 'It goes out before the hello', 'The friend gets it twice'] },
+];
+
 // The example conversation that plays in a loop.
 const CONVO = [
   ['A', 'hi'],
@@ -2456,7 +2519,7 @@ function tryEnter(p) {
   }
   else think('The door is locked. The terminal wants a password.');
 }
-function leaveRoom() { fadeTo(exitRoom, 0.45, 0.6); }
+function leaveRoom() { fadeTo(() => { exitRoom(); if (progress.finale === 'recheck') progress.finale = 'pending'; }, 0.45, 0.6); }
 function exitRoom() {
   const back = scene.back;
   guard = null; pkgRide = null;
@@ -2759,9 +2822,11 @@ function pushDirection(p) {
 }
 
 addEventListener('keydown', e => {
+  if (trial && trial.state === 'talk') { if (e.key === ' ' || e.key === 'Enter' || e.code === 'KeyE') trialNext(); e.preventDefault(); return; }
+  if (trial && quiz.phase !== 'trial') { e.preventDefault(); return; }
   if (quiz.phase !== 'off') {
-    if (e.key === 'Escape') { closeQuiz(); e.preventDefault(); return; }
-    if (TEST_MODE && quiz.phase === 'ask' && e.key.toLowerCase() === 'f') { answer(true); e.preventDefault(); return; }
+    if (e.key === 'Escape') { if (quiz.phase !== 'trial') closeQuiz(); e.preventDefault(); return; }
+    if (TEST_MODE && e.key.toLowerCase() === 'f') { if (quiz.phase === 'ask') answer(true); else if (quiz.phase === 'trial') trialAnswer(true); e.preventDefault(); return; }
     const num = parseInt(e.key, 10);
     if (num >= 1) { const b = quizOpts.querySelectorAll('button')[num - 1]; if (b) { b.click(); e.preventDefault(); } }
     return;
@@ -2879,7 +2944,7 @@ function updateFade(dt) {
   }
 }
 // The robot cannot be driven during a fade, a ride, or while the guard holds it.
-function locked() { return !!fade || !!pkgRide || (!!guard && guard.state !== 'leave'); }
+function locked() { return !!fade || !!pkgRide || (!!guard && guard.state !== 'leave') || !!trial || !!fall; }
 
 // Package view: the camera becomes a package and rides one route through the room.
 let pkgRide = null;
@@ -3201,6 +3266,7 @@ function submitPassword(p, value) {
 }
 
 function startQuiz(p) {
+  quizEl.classList.toggle('low', false);
   quiz.part = p; quiz.i = 0; quiz.wrong = []; quiz.phase = 'ask';
   quiz.items = shuffle(QUIZZES[p.type]).map(q => ({ q: q.q, opts: shuffle(q.a.map((text, k) => ({ text, right: k === 0 }))) }));
   victoryEnd = 0;   // a new quiz stops the victory music
@@ -3216,6 +3282,21 @@ function quizButton(label, fn) {
 // Test switch: open the page as index.html?test (or #test) to get an extra answer F that is always correct.
 const TEST_MODE = /\btest\b/.test((location.search || '') + (location.hash || ''));
 if (TEST_MODE) document.querySelector('#appTitle span').textContent = 'NodeWorld — TEST MODE (F = correct answer)';
+// Test mode only: start the ending now, as if all six quizzes were passed.
+if (TEST_MODE) {
+  const b = document.getElementById('btnEnding');
+  b.hidden = false;
+  b.onclick = () => {
+    if (trial || fall) return;
+    if (dlg.part) closeDialog();
+    if (quiz.phase !== 'off') closeQuiz();
+    pkgRide = null; guard = null; robot.ride = null;
+    if (scene.kind === 'inside') exitRoom();
+    for (const t of ORDER) progress.passed.add(t);
+    progress.finale = 'pending';
+    b.blur();
+  };
+}
 function showQuestion() {
   const it = quiz.items[quiz.i];
   quizNum.textContent = `Question ${quiz.i + 1} of ${quiz.items.length}`;
@@ -3264,9 +3345,175 @@ function closeQuiz() {
   dlgEl.hidden = false; dlgOpts.innerHTML = ''; dlg.optionsShown = false;
   const next = nextOf(p.type);
   if (pass) say([['P', next ? `Well done. Take the password to the ${TYPES[next].name} terminal.` : 'Well done. You know every machine now.']]);
+  if (pass && !next && progress.finale === 'none' && ORDER.every(t => progress.passed.has(t))) progress.finale = 'pending';
   else say([['P', 'Come back when you are ready. My stations know the answers.']]);
 }
 document.getElementById('quizClose').onclick = closeQuiz;
+
+// =====================================================================
+// THE ENDING — capture, identity check, the fall, the node_watcher tag
+// =====================================================================
+// finale: 'none' → 'pending' (catch the robot soon) → trial runs → 'won'.
+// After a fall: 'recheck' → the next time the robot leaves a machine → 'pending'.
+progress.finale = 'none';
+let trial = null;          // the capture and the questions, while they run
+let fall = null;           // the robot thrown off: bits, then the countdown
+const START_SPOT = { x: BOARD.A.x + 600, y: BOARD.A.y + 880 };   // next to the Window on Node A
+const PUSH_STEP = 80;
+function updateFinale(dt) {
+  if (progress.finale === 'pending' && !trial && !fall && !dlg.part && !fade && scene.kind === 'world' && !robot.ride && quiz.phase === 'off') startCapture();
+  if (trial) updateTrial(dt);
+  if (fall) updateFall(dt);
+}
+function startCapture() {
+  const n = boardAt(robot.x, robot.y) || 'A', f = floor(n), dir = n === 'A' ? -1 : 1;   // push toward the outer side of the board
+  const edgeX = dir < 0 ? f.x : f.x + f.w;
+  const y = Math.max(f.y + 200, Math.min(f.y + f.h - 200, robot.y));
+  robot.target = null; keys.clear();
+  trial = {
+    state: 'carry', t: 0, dir, edgeX, y, n,
+    from: { x: robot.x, y: robot.y }, to: { x: edgeX - dir * FINALE_STRIKES * PUSH_STEP, y },
+    bodies: SLOTS.map((slot, i) => ({ slot: [slot[0] * 1.9, slot[1] * 1.4 - 10], wob: i, x: robot.x + slot[0] * 4, y: robot.y + slot[1] * 4 })),
+    talk: FINALE_INTRO.slice(), say: null, sayT: 0,
+    correct: 0, wrong: 0, asked: [], line: '',
+  };
+  progress.finale = 'trial';
+  sfxAlarm();
+  think('Hey! Put me down!');
+}
+function trialSay(line) { trial.say = line; trial.sayT = 0; }
+function updateTrial(dt) {
+  const tr = trial;
+  tr.t += dt; tr.sayT += dt;
+  for (const a of tr.bodies) { a.wob += dt * 9; const tx = robot.x + a.slot[0], ty = robot.y + a.slot[1]; a.x += (tx - a.x) * Math.min(1, dt * 8); a.y += (ty - a.y) * Math.min(1, dt * 8); }
+  if (tr.state === 'carry') {
+    // the antibodies carry the robot to the edge of the board
+    const k = Math.min(1, tr.t / 1.4);
+    robot.x = tr.from.x + (tr.to.x - tr.from.x) * k; robot.y = tr.from.y + (tr.to.y - tr.from.y) * k;
+    robot.moving = true; robot.phase += dt * 10;
+    if (k >= 1) { tr.state = 'talk'; robot.moving = false; trialSay(tr.talk.shift()); }
+  } else if (tr.state === 'talk') {
+    if (tr.sayT > 3.2) trialNext();
+  } else if (tr.state === 'push') {
+    const k = Math.min(1, tr.t / 0.45);
+    robot.x = tr.from.x + (tr.to.x - tr.from.x) * k; robot.moving = true; robot.phase += dt * 12;
+    if (k >= 1) { robot.moving = false; tr.state = 'ask'; if (tr.wrong >= FINALE_STRIKES) throwOverboard(); else showTrialQuestion(); }
+  } else if (tr.state === 'win') {
+    if (tr.t > 3) { for (const a of tr.bodies) a.leave = true; trial = null; quizEl.hidden = true; quiz.phase = 'off'; document.getElementById('quizClose').hidden = false; }
+  }
+}
+// Space, Enter or E: go on in the talk.
+function trialNext() {
+  const tr = trial;
+  if (!tr || tr.state !== 'talk') return;
+  if (tr.talk.length) trialSay(tr.talk.shift());
+  else { tr.say = null; tr.state = 'ask'; showTrialQuestion(); }
+}
+function showTrialQuestion() {
+  const tr = trial;
+  const left = FINALE_QUESTIONS.filter(q => !tr.asked.includes(q));
+  const q = left[Math.floor(Math.random() * left.length)] || FINALE_QUESTIONS[0];
+  tr.asked.push(q);
+  quiz.phase = 'trial';
+  document.getElementById('quizTitle').textContent = 'IDENTITY CHECK — antibody protocol';
+  quizEl.classList.toggle('low', true);
+  document.getElementById('quizClose').hidden = true;   // there is no way out
+  quizEl.hidden = false;
+  quizNum.textContent = `Correct: ${tr.correct} of ${FINALE_NEEDED} · Mistakes: ${tr.wrong} of ${FINALE_STRIKES}`;
+  quizText.innerHTML = '';
+  if (tr.line) { const p = document.createElement('p'); p.innerHTML = `<b>${tr.line}</b>`; quizText.append(p); }
+  const p = document.createElement('p'); p.textContent = q.q; quizText.append(p);
+  quizOpts.innerHTML = '';
+  shuffle(q.a.map((text, k) => ({ text, right: k === 0 }))).forEach((o, k) => quizButton(`${k + 1}. ${o.text}`, () => trialAnswer(o.right)));
+  if (TEST_MODE) quizButton('F. (test) correct', () => trialAnswer(true));
+}
+function trialAnswer(right) {
+  const tr = trial;
+  if (!tr || tr.state !== 'ask') return;
+  if (right) {
+    tr.correct++; sfxClick();
+    tr.line = 'Correct. Identity confidence rising.';
+    if (tr.correct >= FINALE_NEEDED) return winTrial();
+    showTrialQuestion();
+  } else {
+    tr.wrong++; sfxWrong();
+    tr.line = FINALE_PUSH_LINES[tr.wrong - 1];
+    trialSay(['A', tr.line]);
+    // pushed one step closer to the edge; the last push goes over it
+    tr.state = 'push'; tr.t = 0; tr.from = { x: robot.x, y: robot.y };
+    tr.to = { x: tr.wrong >= FINALE_STRIKES ? tr.edgeX + tr.dir * 160 : robot.x + tr.dir * PUSH_STEP, y: robot.y };
+    quizOpts.innerHTML = '';
+  }
+}
+function winTrial() {
+  const tr = trial;
+  tr.state = 'win'; tr.t = 0;
+  progress.finale = 'won'; progress.watcher = true;
+  quizNum.textContent = `Correct: ${tr.correct} of ${FINALE_NEEDED}`;
+  quizText.innerHTML = '<p><b>Identity confirmed.</b></p><p>You are part of the machine. Welcome, <b>node_watcher</b>.</p>';
+  quizOpts.innerHTML = '';
+  trialSay(['A', 'Identity confirmed. Welcome, node_watcher.']);
+  startVictory();
+}
+function throwOverboard() {
+  const tr = trial;
+  quizEl.hidden = true; quiz.phase = 'off'; document.getElementById('quizClose').hidden = false;
+  trial = null;
+  const bits = [];
+  for (let i = 0; i < 46; i++) bits.push({ x: robot.x + (Math.random() - 0.5) * 40, y: robot.y - Math.random() * 60, vx: tr.dir * (40 + Math.random() * 160), vy: -60 + Math.random() * 120, ch: Math.random() < 0.5 ? '0' : '1' });
+  fall = { t: 0, bits, from: { x: robot.x, y: robot.y }, dir: tr.dir };
+  robot.thought = null;
+  progress.finale = 'fallen';
+  sfxFall();
+}
+function updateFall(dt) {
+  const f = fall;
+  f.t += dt;
+  for (const b of f.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vx *= 0.99; }
+  if (f.t >= 4 + REASSEMBLE_SECONDS) {
+    fall = null;
+    robot.x = START_SPOT.x; robot.y = START_SPOT.y; robot.target = null;
+    progress.finale = 'recheck';
+    snapCamera();
+    think('I am back together. They will check me again when I leave a machine.', 4000);
+  }
+}
+function drawTrial() {
+  if (trial && scene.kind === 'world') {
+    for (const a of trial.bodies) drawAntibody(a.x, a.y, AB, a.wob);
+    const chief = trial.bodies[2];
+    if (trial.say) {
+      const [who, text] = trial.say;
+      if (who === 'A') bubble(text, chief.x, chief.y - 40, 11, 260);
+      else bubble(text, robot.x + 80 * trial.dir * -1, robot.y - 70, 11, 220);
+    }
+  }
+  if (fall) {
+    // the robot breaks into ones and zeros, then even those fade away
+    const a = Math.max(0, 1 - fall.t / 4);
+    ctx.globalAlpha = a;
+    for (const b of fall.bits) txt(b.ch, b.x, b.y, 18, '#20ff60', true, 'center');
+    ctx.globalAlpha = 1;
+  }
+}
+function drawWatcherTag() {
+  if (!progress.watcher || fall) return;
+  const y = robot.y - 62 * RS - 8;
+  font(12, true);
+  const w = ctx.measureText('node_watcher').width + 14;
+  ctx.fillStyle = '#000'; ctx.fillRect(robot.x - w / 2 - 1, y - 15, w + 2, 20);
+  ctx.fillStyle = '#20ff60'; ctx.fillRect(robot.x - w / 2, y - 14, w, 18);
+  txt('node_watcher', robot.x, y, 12, '#000', true, 'center');
+}
+function drawCountdown() {
+  if (!fall || fall.t < 4) return;
+  const left = Math.ceil(4 + REASSEMBLE_SECONDS - fall.t);
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, view.cw, view.ch);
+  txt('Lost in cyberspace', view.cw / 2, view.ch / 2 - 50, 22, '#20ff60', true, 'center');
+  txt(String(left), view.cw / 2, view.ch / 2 + 30, 72, '#20ff60', true, 'center');
+  txt('reassembling…', view.cw / 2, view.ch / 2 + 70, 16, '#20ff60', false, 'center');
+}
 
 // ---------- the two faces in the dialogue box ----------
 const avR = document.getElementById('avR').getContext('2d'), avP = document.getElementById('avP').getContext('2d');
@@ -3706,7 +3953,7 @@ function drawBoostTrail() {
 function drawRobotLabels() {
   const top = robot.y - 50 * RS - (swarm && swarm.state !== 'leave' && scene.kind === 'world' ? 60 : 0);
   if (robot.thought && robot.thought.until > performance.now()) { bubble(robot.thought.text, robot.x, top - 4, 11, 260); return; }
-  if (dlg.part || robot.ride || robot.pushed || locked() || cop) return;   // no hints while the cop talks
+  if (dlg.part || robot.ride || robot.pushed || locked() || cop) return;   // no hints while the cop talks or the robot is held
   let hint = null, faint = false;
   if (scene.kind === 'inside') {
     if (nearExit()) hint = 'E: go back outside';
@@ -4186,14 +4433,17 @@ function render(now) {
     drawFloats();
   }
   drawBoostTrail();
-  drawRobot(ctx, robot.x, robot.y, RS, robot.dir, robot.phase, robot.moving || !!robot.pushed, t);
+  if (!fall) drawRobot(ctx, robot.x, robot.y, RS, robot.dir, robot.phase, robot.moving || !!robot.pushed, t);
+  drawWatcherTag();
   drawSwarm();
   drawGuard();
   drawCop();
+  drawTrial();
   drawRidePackage();
   drawRobotLabels();
   drawMinimap();
   drawRideOverlay();
+  drawCountdown();
   drawFade();
 }
 
@@ -4256,7 +4506,7 @@ const VICTORY_SECONDS = 180;
 let victoryEnd = 0;   // audio time when the victory track stops
 function startVictory() { if (audio.ctx) { victoryEnd = audio.ctx.currentTime + VICTORY_SECONDS; audio.track = null; } }
 function wantedTrack() {
-  if (quiz.phase === 'ask') return 'quiz';
+  if (quiz.phase === 'ask' || trial) return 'quiz';
   if (audio.ctx && audio.ctx.currentTime < victoryEnd) return 'victory';
   return scene.kind === 'inside' ? 'room' : 'ambient';
 }
@@ -4373,6 +4623,8 @@ function sfxBoost() { if (!audio.ctx) return; const t = audio.ctx.currentTime; n
 function sfxEnter() { if (!audio.ctx) return; const t = audio.ctx.currentTime; tone(220, t, 1.4, 'triangle', 0.08, audio.sfx, 55); noiseHit(t, 1.2, 'lowpass', 500, 0.08, audio.sfx); }
 // A cop's whistle: two short, high blasts.
 function sfxWhistle() { if (!audio.ctx) return; const t = audio.ctx.currentTime; tone(2600, t, 0.12, 'square', 0.04, audio.sfx, 2900); tone(2600, t + 0.18, 0.28, 'square', 0.04, audio.sfx, 3000); }
+// Thrown overboard: a long fall, then crackling bits.
+function sfxFall() { if (!audio.ctx) return; const t = audio.ctx.currentTime; tone(900, t, 1.6, 'square', 0.05, audio.sfx, 60); for (let k = 0; k < 14; k++) tone(k % 2 ? 1800 : 2400, t + 1.2 + k * 0.09, 0.04, 'square', 0.03, audio.sfx); }
 function sfxClick() { if (audio.ctx) tone(1400, audio.ctx.currentTime, 0.03, 'square', 0.03, audio.sfx); }
 function sfxHangup() { if (audio.ctx) tone(900, audio.ctx.currentTime, 0.14, 'square', 0.04, audio.sfx, 300); }
 function sfxThunk() {
@@ -4502,9 +4754,9 @@ resize();
 
 const st1 = document.getElementById('st1'), st2 = document.getElementById('st2');
 function updateStatus() {
-  const where = scene.kind === 'inside' ? `inside the ${roomOf().name} of Node ${scene.node}` : robot.ride ? 'riding the cable' : `on Node ${boardAt(robot.x, robot.y) || '?'}`;
+  const where = fall ? 'lost in cyberspace' : scene.kind === 'inside' ? `inside the ${roomOf().name} of Node ${scene.node}` : robot.ride ? 'riding the cable' : `on Node ${boardAt(robot.x, robot.y) || '?'}`;
   const al = ['A', 'B'].filter(alert).map(n => ` · Node ${n} ON ALERT`).join('');
-  const boost = robot.boostWait > 0 ? `boost in ${Math.ceil(robot.boostWait)} s` : 'boost ready';
+  const boost = (progress.watcher ? 'node_watcher · ' : '') + (robot.boostWait > 0 ? `boost in ${Math.ceil(robot.boostWait)} s` : 'boost ready');
   st1.textContent = `Simulation: ${paused ? 'paused' : 'running'} · ${speed}× · connection: ${tcp === 'up' ? 'open' : 'none'} · robot: ${where} · ${boost}${al}`;
   const bl = ['A', 'B'].map(n => `${n} ${defense[n].blocks}`).join(', ');
   st2.textContent = `Machines found: ${know.metInst.size}/12 · Questions: ${know.asked.size}/${TOTAL_TOPICS} · Stations seen: ${know.stations.size}/${ALL_STATIONS} · Quizzes passed: ${progress.passed.size}/${ORDER.length} · Blocks: ${bl}`;
@@ -4529,6 +4781,7 @@ function frame(now) {
   updateGuard(dt);
   updateRobot(dt);
   updateCop(dt);
+  updateFinale(dt);
   reveal();
   updateZoom(dt);
   updateCamera(dt);
