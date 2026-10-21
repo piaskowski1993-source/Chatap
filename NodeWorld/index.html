@@ -591,7 +591,7 @@ function segPts(idA, idB) {
   return [center(a), center(b)];
 }
 
-// Which space the robot is in: the world, or inside one node's LogWriter.
+// Which space the robot is in: the world, or inside a room (scene.room = machine type) of one node.
 let scene = { kind: 'world' };
 
 // Simulation state
@@ -802,12 +802,17 @@ function* scenario() {
 }
 
 // =====================================================================
-// INSIDE THE LOGWRITER — a factory floor. Each machine stands for one
-// thing LogWriter.cs really does; the papers are the real log lines.
+// ROOMS — the inside of a machine. Every room is data in ROOMS: size,
+// stations, dialogue, and its own moving parts (update / draw hooks).
+// The room engine further down (doors, enter and exit, collisions,
+// terminals, map, fog, floor and station boxes) works for all of them.
 // =====================================================================
-const IW = 2400, IH = 1400;
-const IN_SPAWN = { x: 130, y: IH - 200 };
-const EXIT = { x: 70, y: IH - 26, w: 120, h: 26 };
+
+const ROOMS = {};
+
+// ---------- the LogWriter room: a factory floor. Each station stands for
+// one thing LogWriter.cs really does; the papers are the real log lines.
+const LOG_W = 2400, LOG_H = 1400;
 const PICK = { x: 1130, y: 410 }, DROP = { x: 1420, y: 410 };
 const PATH_IN = {
   node:    [{ x: 140, y: 350 }, { x: 305, y: 410 }, { x: 470, y: 410 }, PICK],
@@ -820,26 +825,20 @@ const PATH_OUT = {
 const PAPER_SPEED = 260, GAP = 46, ARM_TIME = 0.9, SORT_TIME = 0.4;
 const lastOf = a => a.length ? a[a.length - 1] : null;
 // Each station has a small terminal (term) the robot talks to.
-const STATIONS = [
+const LOG_STATIONS = [
   { id: 'slots',    name: 'Mail slots',          plate: 'SLOTS',     x: 20,   y: 280, w: 120, h: 260, block: true,  term: { side: 'bottom', at: 0.5 } },
   { id: 'gate',     name: 'Closing gate',        plate: 'GATE',      x: 20,   y: 130, w: 120, h: 120, block: true,  term: { side: 'right',  at: 0.5 } },
   { id: 'clock',    name: 'Time clock',          plate: 'CLOCK',     x: 250,  y: 330, w: 110, h: 160, block: true,  term: { side: 'bottom', at: 0.5 } },
-  { id: 'belt',     name: 'Belt',                plate: 'BELT',      x: 470,  y: 380, w: 660, h: 60,  block: false, term: { side: 'bottom', at: 0.5 } },
+  { id: 'belt',     name: 'Belt',                plate: 'BELT',      x: 470,  y: 380, w: 660, h: 60,  block: false, box: false, term: { side: 'bottom', at: 0.5 } },
   { id: 'arm',      name: 'The one arm',         plate: 'ARM',       x: 1180, y: 450, w: 100, h: 130, block: true,  term: { side: 'bottom', at: 0.5 } },
   { id: 'sorter',   name: 'Sorter',              plate: 'SORTER',    x: 1380, y: 350, w: 80,  h: 120, block: true,  term: { side: 'bottom', at: 0.5 } },
-  { id: 'shelf',    name: 'Day shelf',           plate: 'SHELF',     x: 1760, y: 110, w: 560, h: 600, block: false, bias: 90, term: { side: 'bottom', at: 0.12 } },
+  { id: 'shelf',    name: 'Day shelf',           plate: 'SHELF',     x: 1760, y: 110, w: 560, h: 600, block: false, box: false, bias: 90, term: { side: 'bottom', at: 0.12 } },
   { id: 'nodeFile', name: 'node.txt',            plate: 'NODE.TXT',  x: 1900, y: 190, w: 300, h: 120, block: true,  term: { side: 'right',  at: 0.5 } },
   { id: 'peerFile', name: 'Conversation file',   plate: 'PEER FILE', x: 1900, y: 510, w: 300, h: 120, block: true,  term: { side: 'right',  at: 0.5 } },
   { id: 'lamp',     name: 'Red lamp & shredder', plate: 'LAMP',      x: 1170, y: 760, w: 170, h: 170, block: true,  term: { side: 'right',  at: 0.5 } },
 ];
 function freshFactory() { return { items: [], arm: null, sorter: null, nodeLines: [], peerLines: [], clockHit: 0, slotHit: { node: 0, handler: 0 }, fileHit: { node: 0, peer: 0 } }; }
 const factory = { A: freshFactory(), B: freshFactory() };
-// One talkable instance of each station per node (the two factories are copies).
-const ST_INST = {};
-for (const n of ['A', 'B']) {
-  ST_INST[n] = {};
-  for (const st of STATIONS) ST_INST[n][st.id] = { kind: 'station', st, id: `${n}.st.${st.id}`, type: `st:${st.id}`, name: st.name, plate: st.plate, node: n, x: st.x, y: st.y, w: st.w, h: st.h, term: st.term };
-}
 const LEN_IN = { node: polyLen(PATH_IN.node), handler: polyLen(PATH_IN.handler) };
 const CLOCK_AT = { node: polyLen(PATH_IN.node.slice(0, 2)), handler: polyLen(PATH_IN.handler.slice(0, 2)) };
 
@@ -857,8 +856,8 @@ function updateFactory(n, dt) {
     let rem = Math.max(cur - PAPER_SPEED * dt, aheadRem === null ? 0 : aheadRem + GAP, 0);
     rem = Math.min(rem, cur);
     it.d = len - rem;
-    if (!it.stamped && it.d >= CLOCK_AT[it.src]) { it.stamped = true; f.clockHit = simTime + 300; if (scene.kind === 'inside' && scene.node === n) sfxThunk(); }
-    if (rem === 0 && !f.arm) { it.state = 'arm'; f.arm = { item: it, t: 0 }; if (scene.kind === 'inside' && scene.node === n) sfxWhir(); continue; }
+    if (!it.stamped && it.d >= CLOCK_AT[it.src]) { it.stamped = true; f.clockHit = simTime + 300; if (inRoom('log', n)) sfxThunk(); }
+    if (rem === 0 && !f.arm) { it.state = 'arm'; f.arm = { item: it, t: 0 }; if (inRoom('log', n)) sfxWhir(); continue; }
     aheadRem = rem;
   }
   if (f.arm) {
@@ -889,40 +888,68 @@ function itemPos(f, it) {
   if (it.state === 'sort') return { ...DROP };
   return pointAt(it.path, it.d);
 }
+
+ROOMS.log = {
+  name: 'LogWriter', w: LOG_W, h: LOG_H,
+  spawn: { x: 130, y: LOG_H - 200 },
+  exit: { x: 70, y: LOG_H - 26, w: 120, h: 26 },
+  door: { at: 0.75 },   // door in the bottom wall of the machine, this far along its width
+  enterThought: 'It is dark in here. Machines are humming.',
+  stations: LOG_STATIONS, dialogue: ST_DIALOGUE, now: ST_NOW,
+  update: updateFactory,
+  drawBack: drawLogBack, drawFront: drawLogFront,   // drawStation: LOG_DRAW, set where it is defined
+};
+
+// ---------- the room engine ----------
+function roomOf() { return ROOMS[scene.room]; }
+function inRoom(type, n) { return scene.kind === 'inside' && scene.room === type && scene.node === n; }
+// One talkable instance of each station per room and node (the two nodes' rooms are copies).
+const ST_INST = {};   // ST_INST[room][node][station id]
+for (const r in ROOMS) {
+  ST_INST[r] = {};
+  for (const n of ['A', 'B']) {
+    ST_INST[r][n] = {};
+    for (const st of ROOMS[r].stations) ST_INST[r][n][st.id] = { kind: 'station', room: r, st, id: `${n}.${r}.${st.id}`, type: `${r}:${st.id}`, name: st.name, plate: st.plate, node: n, x: st.x, y: st.y, w: st.w, h: st.h, term: st.term };
+  }
+}
+const ALL_STATIONS = Object.values(ROOMS).reduce((s, r) => s + r.stations.length, 0);
 function nearestStation() {
+  if (scene.kind !== 'inside') return null;
   let best = null, bd = Infinity;
-  for (const s of STATIONS) { const d = rectDist(robot.x, robot.y, s) + (s.bias || 0); if (d < bd) { bd = d; best = s; } }
+  for (const s of roomOf().stations) { const d = rectDist(robot.x, robot.y, s) + (s.bias || 0); if (d < bd) { bd = d; best = s; } }
   return bd <= 110 ? best : null;
 }
-function nearExit() { return scene.kind === 'inside' && rectDist(robot.x, robot.y, EXIT) < 70; }
+function nearExit() { return scene.kind === 'inside' && rectDist(robot.x, robot.y, roomOf().exit) < 70; }
+// A machine that has a room has a door in its bottom wall.
+function doorParts() { return parts.filter(p => ROOMS[p.type]); }
+function doorRect(p) { return { x: p.x + ROOMS[p.type].door.at * p.w - 40, y: p.y + p.h - 92, w: 80, h: 92 }; }
 function nearDoor() {
   if (scene.kind !== 'world' || robot.ride) return null;
-  for (const n of ['A', 'B']) {
-    const d = doorRect(n);
-    if (robot.y > d.y + d.h - 4 && rectDist(robot.x, robot.y, d) < 60) return n;
+  for (const p of doorParts()) {
+    const d = doorRect(p);
+    if (robot.y > d.y + d.h - 4 && rectDist(robot.x, robot.y, d) < 60) return p;
   }
   return null;
 }
-function enterLog(n) {
+function enterRoom(p) {
+  const r = ROOMS[p.type];
   if (swarm) for (const a of swarm.bodies) a.state = 'leave';
   robot.pushed = null;
-  scene = { kind: 'inside', node: n, back: { x: robot.x, y: robot.y } };
-  robot.x = IN_SPAWN.x; robot.y = IN_SPAWN.y; robot.target = null; robot.dir = 1;
-  for (const st of STATIONS) st.near = false;
+  scene = { kind: 'inside', node: p.node, room: p.type, back: { x: robot.x, y: robot.y } };
+  robot.x = r.spawn.x; robot.y = r.spawn.y; robot.target = null; robot.dir = 1;
   snapCamera();
-  think('It is dark in here. Machines are humming.', 3000);
+  think(r.enterThought, 3000);
 }
-function tryEnter(n) {
-  if (doorOpen[n]) enterLog(n);
-  else think('The door is closed. Maybe the LogWriter can open it.');
+function tryEnter(p) {
+  if (doorOpen[p.id]) enterRoom(p);
+  else think(`The door is closed. Maybe the ${p.name} can open it.`);
 }
-function exitLog() {
+function exitRoom() {
   const back = scene.back;
   scene = { kind: 'world' };
   robot.x = back.x; robot.y = back.y; robot.target = null;
   snapCamera();
 }
-
 // =====================================================================
 // ROBOT + INPUT
 // =====================================================================
@@ -941,7 +968,7 @@ function nearestPart() {
   for (const p of parts) { const d = rectDist(robot.x, robot.y, p); if (d < bd) { bd = d; best = p; } }
   return best;
 }
-function terminalsHere() { return scene.kind === 'inside' ? Object.values(ST_INST[scene.node]) : parts; }
+function terminalsHere() { return scene.kind === 'inside' ? Object.values(ST_INST[scene.room][scene.node]) : parts; }
 function nearTerminal() {
   if (robot.ride) return null;
   let best = null, bd = 50;
@@ -958,8 +985,9 @@ function nearDock() {
 // Feet may not leave the floor or drive into a machine, terminal or station.
 function blocked(x, y) {
   if (scene.kind === 'inside') {
-    if (x < 20 || x > IW - 20 || y < 40 || y > IH - 12) return true;
-    for (const s of STATIONS) {
+    const r = roomOf();
+    if (x < 20 || x > r.w - 20 || y < 40 || y > r.h - 12) return true;
+    for (const s of r.stations) {
       if (s.block && x > s.x - 8 && x < s.x + s.w + 8 && y > s.y - 8 && y < s.y + s.h + 8) return true;
       const t = termRect(s);
       if (x > t.x - 6 && x < t.x + t.w + 6 && y > t.y - 6 && y < t.y + t.h + 6) return true;
@@ -986,7 +1014,7 @@ function hop() {
 function interact() {
   if (robot.ride || robot.pushed) return;
   if (scene.kind === 'inside') {
-    if (nearExit()) return exitLog();
+    if (nearExit()) return exitRoom();
     const t = nearTerminal();
     if (t) return openDialog(t);
     if (nearestStation()) think('This machine has a terminal somewhere. Let me look around it.');
@@ -1021,7 +1049,7 @@ function updateRobot(dt) {
     if (t.talk && nearTerminal() === t.talk) { robot.target = null; openDialog(t.talk); }
     else if (t.hop && nearDock()) { robot.target = null; hop(); }
     else if (t.door && nearDoor() === t.door) { robot.target = null; tryEnter(t.door); }
-    else if (t.exit && nearExit()) { robot.target = null; exitLog(); }
+    else if (t.exit && nearExit()) { robot.target = null; exitRoom(); }
     else if (d < 6) robot.target = null;
     else { vx = dx / d; vy = dy / d; }
   }
@@ -1177,7 +1205,7 @@ function hitPart(m) {
   return null;
 }
 function hitDock(m) { if (scene.kind !== 'world') return null; for (const n of ['A', 'B']) { const d = dock(n); if (inRect(m, { x: d.x - 150, y: d.y - 96, w: 300, h: 96 })) return n; } return null; }
-function hitDoor(m) { if (scene.kind !== 'world') return null; for (const n of ['A', 'B']) if (inRect(m, doorRect(n))) return n; return null; }
+function hitDoor(m) { if (scene.kind !== 'world') return null; for (const p of doorParts()) if (inRect(m, doorRect(p))) return p; return null; }
 cv.addEventListener('pointerdown', e => {
   const m = toWorld(e);
   const part = hitPart(m);
@@ -1201,12 +1229,13 @@ cv.addEventListener('pointerup', () => {
   cv.style.cursor = 'default';
   if (d.moved || dlg.part || robot.ride || robot.pushed) return;
   if (scene.kind === 'inside') {
+    const EXIT = roomOf().exit;
     if (inRect(d.start, { x: EXIT.x - 20, y: EXIT.y - 60, w: EXIT.w + 40, h: 90 })) robot.target = { x: EXIT.x + EXIT.w / 2, y: EXIT.y - 30, exit: true };
     else {
       // Click a station (or its terminal): drive to the terminal and connect.
-      const st = STATIONS.find(q => inRect(d.start, termRect(q)) || (q.block && inRect(d.start, q)));
+      const st = roomOf().stations.find(q => inRect(d.start, termRect(q)) || (q.block && inRect(d.start, q)));
       if (st) {
-        const inst = ST_INST[scene.node][st.id];
+        const inst = ST_INST[scene.room][scene.node][st.id];
         if (nearTerminal() === inst) openDialog(inst);
         else { const sp = termSpot(inst); robot.target = { x: sp.x, y: sp.y, talk: inst }; }
       } else if (!blocked(d.start.x, d.start.y)) robot.target = { x: d.start.x, y: d.start.y };
@@ -1216,7 +1245,7 @@ cv.addEventListener('pointerup', () => {
   const here = boardAt(robot.x, robot.y);
   const dk = hitDock(d.start), door = hitDoor(d.start);
   if (door) {
-    if (door !== here) think('That door is on the other board.');
+    if (door.node !== here) think('That door is on the other board.');
     else if (nearDoor() === door) tryEnter(door);
     else { const r = doorRect(door); robot.target = { x: r.x + r.w / 2, y: r.y + r.h + 30, door }; }
   } else if (d.clicked) {
@@ -1238,13 +1267,13 @@ cv.addEventListener('pointerup', () => {
 const dlgEl = document.getElementById('dlg'), dlgOpts = document.getElementById('dlgOpts');
 const dlgLine = document.getElementById('dlgLine'), dlgMore = document.getElementById('dlgMore'), dlgSpeaker = document.getElementById('dlgSpeaker');
 const know = { met: new Set(), metInst: new Set(), asked: new Set(), seen: {}, stations: new Set() };
-// dlg.part = what the robot is connected to: a machine in the world, or a station inside the LogWriter.
+// dlg.part = what the robot is connected to: a machine in the world, or a station inside a room.
 const dlg = { part: null, queue: [], cur: null, optionsShown: false, delay: 0 };
-const doorOpen = { A: false, B: false }, doorAnim = { A: 0, B: 0 };
-const TOTAL_TOPICS = [...Object.values(DIALOGUE), ...Object.values(ST_DIALOGUE)].reduce((s, d) => s + d.topics.length, 0);
+const doorOpen = {}, doorAnim = {};   // by part id; doors start closed
+const TOTAL_TOPICS = [...Object.values(DIALOGUE), ...Object.values(ROOMS).flatMap(r => Object.values(r.dialogue))].reduce((s, d) => s + d.topics.length, 0);
 
-function dialogueOf(t) { return t.kind === 'station' ? ST_DIALOGUE[t.st.id] : DIALOGUE[t.type]; }
-function nowLines(t) { return t.kind === 'station' ? ST_NOW[t.st.id](t.node) : NOW[t.type](t.node); }
+function dialogueOf(t) { return t.kind === 'station' ? ROOMS[t.room].dialogue[t.st.id] : DIALOGUE[t.type]; }
+function nowLines(t) { return t.kind === 'station' ? ROOMS[t.room].now[t.st.id](t.node) : NOW[t.type](t.node); }
 function linesOf(topic, t) { return typeof topic.lines === 'function' ? topic.lines(t.node) : topic.lines; }
 function available(t) {
   return dialogueOf(t).topics.filter(tp =>
@@ -1263,7 +1292,7 @@ function openDialog(p) {
   document.getElementById('dlgName').textContent = p.name;
   dlgEl.hidden = false;
   sfxModem();
-  if (p.kind === 'station') know.stations.add(p.st.id);
+  if (p.kind === 'station') know.stations.add(p.type);
   const d = dialogueOf(p);
   const seen = know.seen[p.id] || (know.seen[p.id] = new Set());
   if (!know.met.has(p.type)) {
@@ -1313,13 +1342,13 @@ function showOptions() {
     const isNew = !asked && !firstLook && !seen.has(t.id);
     make((asked ? '✓ ' : '') + t.ask, () => { know.asked.add(key); ask([['R', t.ask], ...linesOf(t, p)]); }, asked ? 'asked' : '', isNew ? 'new' : '');
   }
-  if (p.kind !== 'station' && p.type === 'log') {
-    // The LogWriter's door opens only when you ask for it.
-    const open = !doorOpen[p.node];
+  if (p.kind !== 'station' && ROOMS[p.type]) {
+    // A machine's door opens only when you ask for it.
+    const open = !doorOpen[p.id];
     make(open ? 'Could you open your door?' : 'Please close your door.', () => {
       ask([['R', open ? 'Could you open your door?' : 'Please close your door.'],
            ['P', open ? 'Opening. Mind the step.' : 'Closing. The machines will keep working in the dark.']]);
-      doorOpen[p.node] = open; sfxDoor();
+      doorOpen[p.id] = open; sfxDoor();
     }, 'action');
   }
   make('What are you doing right now?', () => ask([['R', 'What are you doing right now?'], ...nowLines(p).map(s => ['P', s])]));
@@ -1434,8 +1463,12 @@ function makeFog(w, h) {
   const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
   return { c, g };
 }
-const fogs = { world: makeFog(W, H), A: makeFog(IW, IH), B: makeFog(IW, IH) };
-function currentFog() { return scene.kind === 'world' ? fogs.world : fogs[scene.node]; }
+const fogs = { world: makeFog(W, H) };   // plus one per room and node, made on the first visit
+function currentFog() {
+  if (scene.kind === 'world') return fogs.world;
+  const k = `${scene.room}.${scene.node}`, r = roomOf();
+  return fogs[k] || (fogs[k] = makeFog(r.w, r.h));
+}
 function reveal() {
   const g = currentFog().g;
   g.globalCompositeOperation = 'destination-out';
@@ -1648,12 +1681,12 @@ function drawPart(p) {
   }
   ctx.globalAlpha = 1;
   if (p.flash > simTime) { ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 10; ctx.strokeRect(p.x - 6, p.y - 6, p.w + 12, p.h + 12); }
-  if (p.type === 'log') drawDoor(p.node);
+  if (ROOMS[p.type]) drawDoor(p);
   drawTerminal(p);
 }
-function drawDoor(n) {
-  const d = doorRect(n);
-  doorAnim[n] += ((doorOpen[n] ? 1 : 0) - doorAnim[n]) * 0.1;
+function drawDoor(p) {
+  const d = doorRect(p), n = p.id;
+  doorAnim[n] = (doorAnim[n] || 0) + ((doorOpen[n] ? 1 : 0) - (doorAnim[n] || 0)) * 0.1;
   ctx.fillStyle = '#e8c800'; ctx.fillRect(d.x - 6, d.y - 6, d.w + 12, d.h + 6);
   ctx.fillStyle = '#101010'; ctx.fillRect(d.x, d.y, d.w, d.h);
   for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(255,200,0,${0.05 + 0.05 * Math.sin(performance.now() / 300 + i)})`; ctx.fillRect(d.x + 6 + i * 18, d.y + 30, 10, d.h - 30); }
@@ -1786,7 +1819,7 @@ function drawRobotLabels() {
   if (hint) labelBox(hint, robot.x, top - 6, faint, 11);
 }
 
-// ---------- inside the LogWriter ----------
+// ---------- inside a room ----------
 function drawStationBox(s, title) {
   ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x + 8, s.y + 8, s.w, s.h);
   bevel(s.x, s.y, s.w, s.h, true, C.face, 3);
@@ -1794,7 +1827,7 @@ function drawStationBox(s, title) {
   font(15, true); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(fit(title, s.w - 16), s.x + 9, s.y + 21);
 }
 function drawInside() {
-  const n = scene.node, f = factory[n], now = performance.now();
+  const r = roomOf(), n = scene.node, IW = r.w, IH = r.h, EXIT = r.exit;
   ctx.fillStyle = '#000'; ctx.fillRect(-3000, -3000, IW + 6000, IH + 6000);
   // floor with a soft light from above; darkness outside it
   const g = ctx.createRadialGradient(IW / 2, IH / 2, 200, IW / 2, IH / 2, IW * 0.75);
@@ -1805,7 +1838,25 @@ function drawInside() {
   for (let y = 0; y <= IH; y += 100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(IW, y); ctx.stroke(); }
   for (let i = 0; i < IW / 40; i++) { ctx.fillStyle = i % 2 ? '#202020' : '#c8a800'; ctx.fillRect(i * 40, 0, 40, 10); ctx.fillRect(i * 40, IH - 10, 40, 10); }
   for (let i = 0; i < IH / 40; i++) { ctx.fillStyle = i % 2 ? '#202020' : '#c8a800'; ctx.fillRect(0, i * 40, 10, 40); ctx.fillRect(IW - 10, i * 40, 10, 40); }
-  txt(`INSIDE THE LOGWRITER — NODE ${n}`, IW / 2, 70, 44, 'rgba(255,255,255,0.18)', true, 'center');
+  txt(`INSIDE THE ${r.name.toUpperCase()} — NODE ${n}`, IW / 2, 70, 44, 'rgba(255,255,255,0.18)', true, 'center');
+  if (r.drawBack) r.drawBack(n);
+  // stations: a box with a title bar, unless the room draws its own (box: false = no box)
+  for (const s of r.stations) {
+    if (s.box === false) continue;
+    const own = r.drawStation && r.drawStation[s.id];
+    if (own) own(s, n); else drawStationBox(s, s.name);
+  }
+  for (const st of r.stations) drawTerminalBox(termRect(st), dlg.part === ST_INST[scene.room][n][st.id]);
+  // exit door in the bottom wall
+  ctx.fillStyle = '#e8c800'; ctx.fillRect(EXIT.x - 6, EXIT.y - 70, EXIT.w + 12, 70 + EXIT.h);
+  ctx.fillStyle = '#000'; ctx.fillRect(EXIT.x, EXIT.y - 64, EXIT.w, 64 + EXIT.h);
+  txt('EXIT', EXIT.x + EXIT.w / 2, EXIT.y - 24, 20, '#20e040', true, 'center');
+  if (r.drawFront) r.drawFront(n);
+}
+
+// ---------- LogWriter room drawing ----------
+// Behind the stations: belts and the day shelf frame.
+function drawLogBack(n) {
 
   // belts (paths), with rolling marks
   const roll = (simTime / 12) % 30;
@@ -1814,23 +1865,28 @@ function drawInside() {
     ctx.setLineDash([6, 24]); ctx.lineDashOffset = -roll; strokePts(pts, 26, '#5a5a5a'); ctx.setLineDash([]); ctx.lineDashOffset = 0;
   }
   // day shelf frame around the two files
-  const sh = STATIONS.find(s => s.id === 'shelf');
+  const sh = LOG_STATIONS.find(s => s.id === 'shelf');
   ctx.setLineDash([14, 10]); ctx.strokeStyle = '#c8a800'; ctx.lineWidth = 4; ctx.strokeRect(sh.x, sh.y, sh.w, sh.h); ctx.setLineDash([]);
   txt(`${simDate().toISOString().slice(0, 10)}/`, sh.x + 16, sh.y + 34, 26, '#e8c800', true);
 
-  for (const s of STATIONS) {
-    if (s.id === 'belt' || s.id === 'shelf') continue;
-    if (s.id === 'slots') {
+}
+// Stations that draw more than a plain box. Each one draws its own box first.
+const LOG_DRAW = {
+  slots(s, n) {
+      const f = factory[n];
       drawStationBox(s, 'Mail slots');
       for (const [src, y, label] of [['node', 350, 'Node'], ['handler', 470, 'handlers']]) {
         ctx.fillStyle = f.slotHit[src] > simTime ? '#ffe000' : '#101010'; ctx.fillRect(s.x + 70, y - 8, 50, 16);
         txt(label, s.x + 10, y + 6, 15, '#000', true);
       }
-    } else if (s.id === 'gate') {
+  },
+  gate(s) {
       drawStationBox(s, 'Closing gate');
       for (let i = 0; i < 4; i++) { ctx.fillStyle = i % 2 ? '#808080' : '#a0a0a0'; ctx.fillRect(s.x + 12, s.y + 36 + i * 14, s.w - 24, 12); }
       txt('OPEN', s.x + s.w / 2, s.y + s.h - 12, 15, '#006000', true, 'center');
-    } else if (s.id === 'clock') {
+  },
+  clock(s, n) {
+      const f = factory[n];
       drawStationBox(s, 'Time clock');
       const cx = s.x + s.w / 2, cy = s.y + 70, ang = simTime / 4000;
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke();
@@ -1839,15 +1895,29 @@ function drawInside() {
       ctx.fillStyle = '#505050'; ctx.fillRect(cx - 12, s.y + 104, 24, hit ? 34 : 16);     // stamp piston
       ctx.fillStyle = '#c00000'; ctx.fillRect(cx - 16, s.y + (hit ? 136 : 118), 32, 8);
       txt('UTC', cx, s.y + s.h - 6, 13, '#000', true, 'center');
-    } else if (s.id === 'arm') {
-      drawStationBox(s, 'The one arm');
-    } else if (s.id === 'sorter') {
+  },
+  sorter(s, n) {
+      const f = factory[n];
       drawStationBox(s, 'Sorter');
       const it = f.sorter && f.sorter.item, up = it ? !it.peer : null;
       ctx.strokeStyle = C.dk; ctx.lineWidth = 6; ctx.beginPath();
       ctx.moveTo(s.x + 20, s.y + 74); ctx.lineTo(s.x + 60, up === null ? s.y + 74 : up ? s.y + 44 : s.y + 104); ctx.stroke();
       txt('ID?', s.x + s.w / 2, s.y + s.h - 6, 14, '#000', true, 'center');
-    } else if (s.id === 'nodeFile' || s.id === 'peerFile') {
+  },
+  nodeFile(s, n) { drawLogFile(s, n); },
+  peerFile(s, n) { drawLogFile(s, n); },
+  lamp(s) {
+      drawStationBox(s, 'Red lamp & shredder');
+      ctx.fillStyle = '#4a0000'; ctx.beginPath(); ctx.arc(s.x + 44, s.y + 70, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke();
+      txt('off', s.x + 44, s.y + 112, 13, '#000', true, 'center');
+      bevel(s.x + 86, s.y + 48, 70, 90, true, '#909090', 2);
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = C.dk; ctx.fillRect(s.x + 92 + i * 10, s.y + 56, 6, 12); }
+  },
+};
+ROOMS.log.drawStation = LOG_DRAW;
+function drawLogFile(s, n) {
+      const f = factory[n];
       const isNode = s.id === 'nodeFile', lines = isNode ? f.nodeLines : f.peerLines;
       const fname = isNode ? 'node.txt' : `${INFO[other(n)].id.slice(0, 8)}….txt`;
       drawStationBox(s, fname);
@@ -1858,21 +1928,10 @@ function drawInside() {
       lines.slice(-3).forEach((l, i) => { font(11, false); ctx.fillStyle = '#000'; ctx.textAlign = 'left'; ctx.fillText(fit(l, s.w - 116), s.x + 94, s.y + 52 + i * 16); });
       if (!lines.length) txt('(empty)', s.x + 94, s.y + 52, 12, C.lo);
       txt(`${lines.length} lines`, s.x + 14, s.y + 46, 13, '#000', true);
-    } else if (s.id === 'lamp') {
-      drawStationBox(s, 'Red lamp & shredder');
-      ctx.fillStyle = '#4a0000'; ctx.beginPath(); ctx.arc(s.x + 44, s.y + 70, 22, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke();
-      txt('off', s.x + 44, s.y + 112, 13, '#000', true, 'center');
-      bevel(s.x + 86, s.y + 48, 70, 90, true, '#909090', 2);
-      for (let i = 0; i < 6; i++) { ctx.fillStyle = C.dk; ctx.fillRect(s.x + 92 + i * 10, s.y + 56, 6, 12); }
-    }
-  }
-  for (const st of STATIONS) drawTerminalBox(termRect(st), dlg.part === ST_INST[n][st.id]);
-  // exit door in the bottom wall
-  ctx.fillStyle = '#e8c800'; ctx.fillRect(EXIT.x - 6, EXIT.y - 70, EXIT.w + 12, 70 + EXIT.h);
-  ctx.fillStyle = '#000'; ctx.fillRect(EXIT.x, EXIT.y - 64, EXIT.w, 64 + EXIT.h);
-  txt('EXIT', EXIT.x + EXIT.w / 2, EXIT.y - 24, 20, '#20e040', true, 'center');
-
+}
+// In front of the stations: the papers and the arm.
+function drawLogFront(n) {
+  const f = factory[n], now = performance.now();
   // papers
   for (const it of f.items) {
     const p = itemPos(f, it);
@@ -1894,16 +1953,16 @@ function drawInside() {
 }
 
 function drawMinimap() {
-  const inside = scene.kind === 'inside';
-  const MW = inside ? IW : W, MH = inside ? IH : H;
+  const inside = scene.kind === 'inside', r = inside ? roomOf() : null;
+  const MW = inside ? r.w : W, MH = inside ? r.h : H;
   const mw = Math.min(280, view.cw * 0.3), sc = mw / MW, mh = MH * sc, x0 = view.cw - mw - 12, y0 = 12;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   bevel(x0 - 4, y0 - 4, mw + 8, mh + 8, true, C.face, 1);
   const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x0 + x * sc, y0 + y * sc, Math.max(1.5, w * sc), Math.max(1.5, h * sc)); };
   if (inside) {
-    R(0, 0, IW, IH, '#555');
-    for (const s of STATIONS) R(s.x, s.y, s.w, s.h, s.block ? (know.stations.has(s.id) ? C.navy : '#999') : (know.stations.has(s.id) ? '#5060a0' : '#777'));
-    R(EXIT.x, EXIT.y - 60, EXIT.w, 60, '#20e040');
+    R(0, 0, r.w, r.h, '#555');
+    for (const s of r.stations) { const met = know.stations.has(`${scene.room}:${s.id}`); R(s.x, s.y, s.w, s.h, s.block ? (met ? C.navy : '#999') : (met ? '#5060a0' : '#777')); }
+    R(r.exit.x, r.exit.y - 60, r.exit.w, 60, '#20e040');
   } else {
     R(0, 0, W, H, C.voidc);
     for (const n of ['A', 'B']) {
@@ -1919,16 +1978,16 @@ function drawMinimap() {
       R(p.x, p.y, p.w, p.h, know.metInst.has(p.id) ? C.navy : '#8a8a8a');
       const t = termRect(p); R(t.x, t.y, t.w, t.h, '#20c040');
     }
-    for (const n of ['A', 'B']) { const d = doorRect(n); R(d.x, d.y, d.w, d.h, '#ff9000'); }
+    for (const p of doorParts()) { const d = doorRect(p); R(d.x, d.y, d.w, d.h, '#ff9000'); }
   }
   ctx.drawImage(currentFog().c, x0, y0, mw, mh);   // unexplored = black
   const hw = view.cw / 2 / view.zoom, hh = view.ch / 2 / view.zoom;
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(x0 + (cam.x - hw) * sc, y0 + (cam.y - hh) * sc, hw * 2 * sc, hh * 2 * sc);
   ctx.fillStyle = '#ff2020'; ctx.fillRect(x0 + robot.x * sc - 2.5, y0 + robot.y * sc - 2.5, 5, 5);
-  if (inside) txt(`LogWriter, Node ${scene.node}`, x0 + 4, y0 + mh - 4, 12, '#fff', true);
+  if (inside) txt(`${r.name}, Node ${scene.node}`, x0 + 4, y0 + mh - 4, 12, '#fff', true);
 }
 
-function camBounds() { return scene.kind === 'inside' ? { x0: -300, y0: -300, x1: IW + 300, y1: IH + 300 } : { x0: 0, y0: 0, x1: W, y1: H }; }
+function camBounds() { return scene.kind === 'inside' ? { x0: -300, y0: -300, x1: roomOf().w + 300, y1: roomOf().h + 300 } : { x0: 0, y0: 0, x1: W, y1: H }; }
 function updateCamera(dt) {
   const k = 1 - Math.exp(-6 * dt);
   cam.x += (robot.x - cam.x) * k; cam.y += (robot.y - 40 - cam.y) * k;
@@ -2153,11 +2212,11 @@ resize();
 
 const st1 = document.getElementById('st1'), st2 = document.getElementById('st2');
 function updateStatus() {
-  const where = scene.kind === 'inside' ? `inside the LogWriter of Node ${scene.node}` : robot.ride ? 'riding the cable' : `on Node ${boardAt(robot.x, robot.y) || '?'}`;
+  const where = scene.kind === 'inside' ? `inside the ${roomOf().name} of Node ${scene.node}` : robot.ride ? 'riding the cable' : `on Node ${boardAt(robot.x, robot.y) || '?'}`;
   const al = ['A', 'B'].filter(alert).map(n => ` · Node ${n} ON ALERT`).join('');
   st1.textContent = `Simulation: ${paused ? 'paused' : 'running'} · ${speed}× · connection: ${tcp === 'up' ? 'open' : 'none'} · robot: ${where}${al}`;
   const bl = ['A', 'B'].map(n => `${n} ${defense[n].blocks}`).join(', ');
-  st2.textContent = `Machines found: ${know.metInst.size}/12 · Questions: ${know.asked.size}/${TOTAL_TOPICS} · LogWriter stations seen: ${know.stations.size}/${STATIONS.length} · Blocks: ${bl}`;
+  st2.textContent = `Machines found: ${know.metInst.size}/12 · Questions: ${know.asked.size}/${TOTAL_TOPICS} · Stations seen: ${know.stations.size}/${ALL_STATIONS} · Blocks: ${bl}`;
 }
 
 spawn(scenario());
@@ -2171,7 +2230,7 @@ function frame(now) {
     updatePackets(simDt);
     for (const t of tasks.slice()) if (!t.done) runTask(t);
     tasks = tasks.filter(t => !t.done);
-    updateFactory('A', simDt); updateFactory('B', simDt);
+    for (const r of Object.values(ROOMS)) if (r.update) { r.update('A', simDt); r.update('B', simDt); }
     updateSwarm(simDt);
   }
   updateRobot(dt);
@@ -2184,7 +2243,7 @@ function frame(now) {
   render(now);
   requestAnimationFrame(frame);
 }
-if (location.hash === '#inside') enterLog('A');   // shortcut: open the page as index.html#inside to start in the factory
+if (location.hash === '#inside') enterRoom(P['A.log']);   // shortcut: open the page as index.html#inside to start in the LogWriter
 reveal(); snapCamera(); updateStatus(); render(performance.now());
 (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(frame));
 </script>

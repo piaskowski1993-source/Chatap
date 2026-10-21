@@ -20,24 +20,24 @@ let t;
  t=__t; t.initAudio(); console.log('audio started');
  for (const id in t.P){ const sp=t.termSpot(t.P[id]); t.robot.x=sp.x; t.robot.y=sp.y; if(t.blocked(sp.x,sp.y)||t.nearTerminal()!==t.P[id]) console.log('BAD world terminal',id); }
  // door closed at start
- const d=t.doorRect('A'); t.robot.x=d.x+d.w/2; t.robot.y=d.y+d.h+30; t.interact();
+ const d=t.doorRect(t.P['A.log']); t.robot.x=d.x+d.w/2; t.robot.y=d.y+d.h+30; t.interact();
  console.log('closed door -> scene', t.scene.kind, '| thought:', t.robot.thought.text);
  // ask the LogWriter to open
  const sp=t.termSpot(t.P['A.log']); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions();
  console.log('LogWriter options:', opts());
  const btn=els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('open your door')); btn.onclick(); talkUntilOptions();
- console.log('door open?', t.doorOpen.A, '| last line:', els.dlgLine.textContent); t.closeDialog();
+ console.log('door open?', t.doorOpen['A.log'], '| last line:', els.dlgLine.textContent); t.closeDialog();
  t.robot.x=d.x+d.w/2; t.robot.y=d.y+d.h+30; t.interact(); console.log('enter -> scene', t.scene.kind, t.scene.node);
  // every station terminal reachable
- for (const k in t.ST_INST.A){ const inst=t.ST_INST.A[k]; const s=t.termSpot(inst); t.robot.x=s.x; t.robot.y=s.y; if(t.blocked(s.x,s.y)||t.nearTerminal()!==inst) console.log('BAD station terminal',k, t.blocked(s.x,s.y), t.nearTerminal()&&t.nearTerminal().id); }
+ for (const k in t.ST_INST.log.A){ const inst=t.ST_INST.log.A[k]; const s=t.termSpot(inst); t.robot.x=s.x; t.robot.y=s.y; if(t.blocked(s.x,s.y)||t.nearTerminal()!==inst) console.log('BAD station terminal',k, t.blocked(s.x,s.y), t.nearTerminal()&&t.nearTerminal().id); }
  console.log('station terminals checked');
- const arm=t.ST_INST.A.arm, as=t.termSpot(arm); t.robot.x=as.x; t.robot.y=as.y; t.interact();
+ const arm=t.ST_INST.log.A.arm, as=t.termSpot(arm); t.robot.x=as.x; t.robot.y=as.y; t.interact();
  tick(30); console.log('connecting text:', els.dlgLine.textContent);
  talkUntilOptions(); console.log('arm speaker/line:', els.dlgSpeaker.textContent, '|', els.dlgLine.textContent); console.log('arm options:', opts());
  els.dlgOpts.children[0].onclick(); talkUntilOptions(); console.log('after ask, last line:', els.dlgLine.textContent); t.closeDialog();
  // dynamic answer: node.txt last line
  tick(60*30);
- const nf=t.ST_INST.A.nodeFile, ns=t.termSpot(nf); t.robot.x=ns.x; t.robot.y=ns.y; t.interact(); talkUntilOptions();
+ const nf=t.ST_INST.log.A.nodeFile, ns=t.termSpot(nf); t.robot.x=ns.x; t.robot.y=ns.y; t.interact(); talkUntilOptions();
  els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('last line')).onclick(); talkUntilOptions(); console.log('node.txt last line answer:', els.dlgLine.textContent); t.closeDialog();
  // leave and stand near a busy wire to hear packets
  t.robot.x=130; t.robot.y=1360; t.interact(); const B=t.BOARD.A; t.robot.x=B.x+1450; t.robot.y=B.y+1500;
