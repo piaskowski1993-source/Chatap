@@ -136,7 +136,7 @@
     </label>
     <button class="w95" id="btnLayout">Reset layout</button>
     <button class="w95" id="btnSound">Sound: on</button>
-    <span class="hint">Arrows / WASD: drive · E: terminal / door / cable · Space: next line · 1–4: choose · click: drive there · drag: move a machine</span>
+    <span class="hint">Arrows / WASD: drive · E: terminal / door / cable · Shift: boost · Space: next line · 1–4: choose · click: drive there · drag: move a machine</span>
   </div>
   <div class="stage" id="stage">
     <canvas id="cv"></canvas>
@@ -513,6 +513,178 @@ const ST_NOW = {
   lamp: () => ['Dark. All is well.'],
 };
 
+// Dialogue of the stations inside the Window (same rules as DIALOGUE).
+const WIN_DIALOGUE = {
+  address: {
+    greet: [['R', 'Hello. Is that your name?'], ['P', 'It is where we live: an IP address and a port.']],
+    twin: [['P', 'The other Window shows its own address. Another IP, another port.']],
+    topics: [
+      { id: 'when', ask: 'When did your number appear?', lines: [
+        ['P', 'Only after the Node started listening. The operating system chose the port at that moment.'],
+        ['P', 'Before that, nobody knew it. Not even me.'] ] },
+      { id: 'tell', ask: 'Do you send it to the friend?', lines: [
+        ['P', 'No. The human tells it some other way. A voice, a note, a text message.'],
+        ['P', 'Nobody in here knows where anyone is until they are told.'] ] },
+      { id: 'two', ask: 'Why are there two addresses?', lines: [
+        ['P', 'One for each network that is up, and 127.0.0.1 too.'],
+        ['P', '127.0.0.1 works only on the same computer.'] ] },
+    ],
+  },
+  connect: {
+    greet: [['R', 'Hello. Two empty boxes?'], ['P', 'An IP box and a port box. And a Connect button.']],
+    twin: [['P', 'My twin has the same boxes.']],
+    topics: [
+      { id: 'check', ask: 'What do you check?', lines: [
+        ['P', 'That the IP box is not empty, and that the port is a number from 1 to 65535.'],
+        ['P', 'Only then do I ask the Node to connect.'] ] },
+      { id: 'fail', ask: 'And if nobody answers?', after: 'check', lines: [
+        ['P', 'The Node tells me it failed, and the status line says: cannot connect.'] ] },
+    ],
+  },
+  status: {
+    greet: [['R', 'Hello. You are a strip of words.'], ['P', 'I am the status line. One sentence about what just happened.']],
+    twin: [['P', 'My twin tells its human about the other side of the same talk.']],
+    topics: [
+      { id: 'what', ask: 'What do you say?', lines: [
+        ['P', 'Connecting. Connected, waiting for the hello. Chatting with someone. Conversation ended.'] ] },
+      { id: 'bad', ask: 'Do you say bad news too?', lines: [
+        ['P', 'Yes. If the log or the store fails, I say that Chatap continues without it.'],
+        ['P', 'The chat goes on.'] ] },
+    ],
+  },
+  glass: {
+    greet: [['R', 'Hello. You are huge.'], ['P', 'I am the glass. The human looks through me. Everything they see is painted on me.']],
+    twin: [['P', 'There is a glass like me in the other Window, for the other human.']],
+    topics: [
+      { id: 'paint', ask: 'Who paints on you?', lines: [
+        ['P', 'Only the painter. Nobody else may touch me.'] ] },
+      { id: 'decide', ask: 'Do you decide what to show?', lines: [
+        ['P', 'No. I only show what the stations behind me tell me.'],
+        ['P', 'In the code, I am MainWindow, the view. The stations behind me are the view models. They do the deciding.'] ] },
+    ],
+  },
+  tabs: {
+    greet: [['R', 'Hello. Cards?'], ['P', 'Tabs. One for each conversation.']],
+    twin: [['P', 'The other Window has its own rack. It shows the same talk, from the other side.']],
+    topics: [
+      { id: 'hold', ask: 'What does a tab hold?', lines: [
+        ['P', 'Its own handler. When the handler has news, it tells only its own tab.'] ] },
+      { id: 'when', ask: 'When does a new tab appear?', lines: [
+        ['P', 'If we called them: at once, with the word "connecting".'],
+        ['P', 'If they called us: only after their hello, when the conversation is ready.'] ] },
+      { id: 'end', ask: 'And when a talk ends?', lines: [
+        ['P', 'The tab is taken off. The other tabs do not notice.'] ] },
+    ],
+  },
+  bench: {
+    greet: [['R', 'Hello. You are a text box.'], ['P', 'I hold what the human types, before it is sent.']],
+    twin: [['P', 'The other draft box holds the other human\'s words.']],
+    topics: [
+      { id: 'where', ask: 'Does the typing go anywhere yet?', lines: [
+        ['P', 'No. It stays with me until Send. But every letter goes to the scale.'] ] },
+    ],
+  },
+  scale: {
+    greet: [['R', 'Hello. What do you weigh?'], ['P', 'Messages. In bytes, not in letters.']],
+    twin: [['P', 'My twin weighs with the same weights.']],
+    topics: [
+      { id: 'why', ask: 'Are bytes and letters not the same?', lines: [
+        ['P', "Not always. An 'a' costs one byte. An 'ø' costs six, after it is dressed in JSON."] ] },
+      { id: 'how', ask: 'How do you know the real weight?', lines: [
+        ['P', 'I ask the Codec. It measures with the same code that really sends.'] ] },
+      { id: 'limit', ask: 'What is the limit?', lines: [
+        ['P', '65,536 bytes. Above that, I turn red and the Send lever locks.'] ] },
+    ],
+  },
+  lever: {
+    greet: [['R', 'Hello. A lever!'], ['P', 'The Send button. Pull me and the draft goes.']],
+    twin: [['P', 'The other lever sends the other way.']],
+    topics: [
+      { id: 'grey', ask: 'When can I not pull you?', lines: [
+        ['P', 'When the draft is empty, or too heavy for the scale. Then I am grey.'] ] },
+      { id: 'order', ask: 'What happens when you are pulled?', lines: [
+        ['P', 'The line is painted on the glass first. Then I give the text to the handler, down the chute.'] ] },
+      { id: 'fail', ask: 'What if the handler cannot send it?', after: 'order', lines: [
+        ['P', 'The line stays on the glass, with a red mark: not sent.'] ] },
+    ],
+  },
+  chute: {
+    greet: [['R', 'Hello. Where do you go?'], ['P', 'Down to the handler. I am the only way out for messages.']],
+    twin: [['P', 'The other chute goes to the other handler.']],
+    topics: [
+      { id: 'net', ask: 'Does the Window send messages itself?', lines: [
+        ['P', 'No. The Window never touches the network. The handler sends.'] ] },
+    ],
+  },
+  pipe: {
+    greet: [['R', 'Hello. You are dripping.'], ['P', 'News from the handler comes out of me. It comes on another thread: a background thread.']],
+    twin: [['P', 'My twin drips the other handler\'s news.']],
+    topics: [
+      { id: 'touch', ask: 'Can the news go straight to the glass?', lines: [
+        ['P', 'No! Only one thread may change the picture: the UI thread.'],
+        ['P', 'So the news goes into the post box first.'] ] },
+    ],
+  },
+  post: {
+    greet: [['R', 'Hello. A mailbox?'], ['P', 'The post box of the UI thread. In the code: Dispatcher.UIThread.Post.']],
+    twin: [['P', 'Every Window has one post box.']],
+    topics: [
+      { id: 'why', ask: 'Why a post box?', lines: [
+        ['P', 'The handler lives on another thread. It drops the news here and goes back to work. It does not wait.'] ] },
+      { id: 'order', ask: 'In which order do you give out the news?', lines: [
+        ['P', 'The oldest first. One at a time, to the painter.'] ] },
+    ],
+  },
+  painter: {
+    greet: [['R', 'Hello. You have a brush.'], ['P', 'I am the UI thread. The only one who may change the window.']],
+    twin: [['P', 'The other Window has its own painter. One each.']],
+    topics: [
+      { id: 'one', ask: 'Why only one painter?', lines: [
+        ['P', 'If two hands paint at once, the picture tears. With one painter, every change is whole.'] ] },
+      { id: 'busy', ask: 'What if you are busy?', lines: [
+        ['P', 'The news waits in the post box.'],
+        ['P', 'And I never stop to wait for the network. If I did, the whole window would freeze.'] ] },
+    ],
+  },
+  clock: {
+    greet: [['R', 'Hello. Two clocks?'], ['P', 'UTC goes in. Your local time comes out.']],
+    twin: [['P', 'My twin shows the time of the other human. Same UTC, maybe another zone.']],
+    topics: [
+      { id: 'why', ask: 'Why not use local time everywhere?', lines: [
+        ['P', 'Messages are kept in UTC: the same for everyone, with no summer time.'],
+        ['P', 'I change it to local time only at the last step, for human eyes.'] ] },
+    ],
+  },
+  history: {
+    greet: [['R', 'Hello. A drawer?'], ['P', 'The chat history. Old messages with this friend, from earlier sessions.']],
+    twin: [['P', 'The other drawer holds the same talks, as the other human saw them.']],
+    topics: [
+      { id: 'where', ask: 'Where do they come from?', lines: [
+        ['P', "From the ConversationStore. I read the friend's file and put the old lines above the new ones."] ] },
+      { id: 'once', ask: 'Can I open you twice?', after: 'where', lines: [
+        ['P', 'No. One time per conversation. Then my button goes away.'],
+        ['P', 'If there is nothing, the status line says: no earlier messages.'] ] },
+    ],
+  },
+};
+// Live answers of the Window stations to "What are you doing right now?"
+const WIN_NOW = {
+  address: n => [`Showing ${INFO[n].ip} : ${INFO[n].port}.`],
+  connect: n => [winRoom[n].tabs.length ? 'Nothing. A conversation is open.' : N[n].typing ? `The human is typing: ${N[n].typing}` : 'Waiting for an address.'],
+  status: n => [`Saying: ${winRoom[n].status}`],
+  glass: n => [winRoom[n].tabs.length ? `Showing ${winRoom[n].lines.length} lines.` : 'Showing an empty window. No conversation.'],
+  tabs: n => [winRoom[n].tabs.length ? `One tab: ${winRoom[n].tabs[0].title}.` : 'No tabs.'],
+  bench: n => [winRoom[n].tabs.length && N[n].typing ? `Holding: ${N[n].typing}` : 'Empty.'],
+  scale: n => [`${winBytes(n)} bytes on me.`],
+  lever: n => [winCanSend(n) ? 'Ready to be pulled.' : 'Grey. Nothing to send.'],
+  chute: () => ['Waiting for the next message.'],
+  pipe: n => [winRoom[n].tabs.length ? 'Waiting for news from the handler.' : 'Dry. No handler.'],
+  post: n => [`${winRoom[n].queue.length} news in me.`],
+  painter: n => [winRoom[n].painter ? 'Painting. Do not shake my ladder.' : 'Resting. The post box is empty.'],
+  clock: () => [`It is ${localHM(simDate())} here, ${simDate().toISOString().slice(11, 16)} UTC.`],
+  history: () => ['Closed. Nobody asked for the history.'],
+};
+
 // =====================================================================
 // QUIZZES AND PASSWORDS — edit freely.
 // The robot explores the machines in ORDER. Each machine's quiz is about
@@ -524,6 +696,32 @@ const ORDER = ['window', 'node', 'handler', 'store', 'codec', 'log'];
 const PASSWORDS = { node: 'portzero', handler: 'hellofirst', store: 'appendonly', codec: 'fourbytes', log: 'onearm' };
 const MASTER_PASSWORD = 'adminadmin1';   // easter egg: opens every door, at any time
 const QUIZZES = {
+  window: [
+    { q: 'Which part of Chatap is the only one the human can see?', a: [
+      'The Window', 'The Codec', 'The ConnectionHandler', 'The LogWriter'] },
+    { q: 'Why does your address appear only after the Node starts?', a: [
+      'The operating system chooses the port when the Node starts listening, so nobody knows it before',
+      "The Window waits for the friend's hello", 'The address must come from the internet', 'The Node keeps it secret until a friend connects'] },
+    { q: 'How does a friend learn your address?', a: [
+      'The human tells it some other way, for example with a voice or a note', 'The Window sends it to every computer on the network',
+      'The Node finds friends by itself', "The friend's Window guesses it"] },
+    { q: 'What does each tab hold on to?', a: [
+      'Its own connection handler', 'All the handlers of the node', 'The LogWriter', 'The Codec'] },
+    { q: 'Somebody connects to you. When does their tab appear?', a: [
+      'After their hello, when the conversation is ready', 'Before the TCP connection exists', 'Only when you start to type', 'Never: only outgoing talks get a tab'] },
+    { q: 'What does the scale under the draft count?', a: [
+      'The bytes of the message as JSON', 'The letters', 'The words', 'The seconds of typing'] },
+    { q: 'When is the Send lever grey?', a: [
+      'When the draft is empty or too heavy', 'When the friend is typing', 'When the last message is not delivered yet', 'Never'] },
+    { q: 'The human presses Send. What happens first?', a: [
+      'The line is painted on the glass, then the text goes to the handler', 'The Window waits until the friend confirms it',
+      'The Window sends the bytes over the network itself', 'The line shows only after the friend answers'] },
+    { q: 'News from the handler comes on a background thread. How does it get onto the glass?', a: [
+      "It goes into the UI thread's post box, and the UI thread paints it", 'The handler paints it on the glass directly',
+      'The glass reads the network every second', 'The Codec writes it on the glass'] },
+    { q: 'Which time does the glass show next to a message?', a: [
+      'Local time, changed from the UTC time that is kept', 'UTC time', "The friend's local time", 'The time the message was typed, in seconds'] },
+  ],
   log: [
     { q: 'Who drops papers into the mail slots of the LogWriter?', a: [
       'The Node and the connection handlers', 'Only the Window', 'The Codec', 'The other node, over the cable'] },
@@ -783,7 +981,7 @@ function* hello(x) {
 }
 function* ready(n) {
   yield send([`${n}.handler`, `${n}.window`], 'cmd', { label: 'Ready', at: {
-    1: { say: 'tab opens (UI thread)', fn: () => { N[n].tab = `Node ${other(n)}`; } },
+    1: { say: 'tab opens (UI thread)', fn: () => { N[n].tab = `Node ${other(n)}`; winReady(n); } },
   } });
 }
 // Chat messages are saved by the store; the handler does not log them.
@@ -792,6 +990,7 @@ function* chat(x, text) {
   yield* typeInto(x, text);
   N[x].typing = '';
   N[x].chat.push({ from: x, text });
+  winSend(x, text);
   const len = jsonBytes({ type: 'chat', text, sent: sentStamp() });
   yield send([`${x}.window`, `${x}.handler`, `${x}.store`, `${x}.handler`, `${x}.codec`, `${y}.codec`, `${y}.handler`, `${y}.store`, `${y}.handler`, `${y}.window`], 'chat', { at: {
     1: { say: 'SendAsync' },
@@ -800,7 +999,7 @@ function* chat(x, text) {
     5: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; } },
     6: { say: 'MessageReceived' },
     7: { say: 'saved', fn: () => N[y].storeLines++ },
-    9: { say: 'posted to UI thread', fn: () => N[y].chat.push({ from: x, text }) },
+    9: { say: 'posted to UI thread', fn: () => { N[y].chat.push({ from: x, text }); winReceive(y, text); } },
   } });
 }
 function* scenario() {
@@ -817,6 +1016,7 @@ function* scenario() {
     // Human A types B's address and presses Connect.
     yield* typeInto('A', `${INFO.B.ip}:${INFO.B.port}`);
     floatAt('A.window', 'Connect');
+    winConnect('A');
     yield send(['A.window', 'A.node'], 'cmd', { label: 'connect' });
     N.A.typing = '';
     spawn(logLine('A', 'node', `outgoing connection to ${INFO.B.ip}:${INFO.B.port}`));
@@ -832,6 +1032,7 @@ function* scenario() {
     floatAt('B.node', 'accept() → new socket');
     floatAt('A.node', 'connected');
     for (const n of ['A', 'B']) { N[n].handlerAlive = true; N[n].handlerState = 'WaitingForHello'; }
+    winTabOpen('A');   // an outgoing conversation shows its tab at once
     yield all(
       send(['A.node', 'A.handler'], 'cmd', { label: 'socket' }),
       send(['B.node', 'B.handler'], 'cmd', { label: 'socket' }),
@@ -848,7 +1049,7 @@ function* scenario() {
     // A closes the conversation. FIN goes one way, then the other.
     floatAt('A.window', 'close conversation');
     yield send(['A.window', 'A.handler'], 'cmd', { label: 'close' });
-    N.A.handlerState = 'Closed'; N.A.tab = null;
+    N.A.handlerState = 'Closed'; N.A.tab = null; winEnd('A');
     spawn(logLine('A', 'handler', 'closed: LocalClose (closed by this node)', true));
     yield send(['A.handler', 'A.codec', 'B.codec', 'B.handler'], 'fin', { label: 'FIN', at: {
       2: { say: 'read → 0 bytes → end' },
@@ -858,7 +1059,7 @@ function* scenario() {
       } },
     } });
     yield send(['B.handler', 'B.window'], 'cmd', { label: 'Disconnected', at: {
-      1: { fn: () => N.B.chat.push({ from: 'sys', text: 'Node A left.' }) },
+      1: { fn: () => { N.B.chat.push({ from: 'sys', text: 'Node A left.' }); winEnd('B'); } },
     } });
     yield send(['B.handler', 'B.codec', 'A.codec', 'A.handler'], 'fin', { label: 'FIN', at: {
       3: { say: 'other direction closed' },
@@ -966,11 +1167,145 @@ ROOMS.log = {
   door: { at: 0.75 },   // door in the bottom wall of the machine, this far along its width
   enterThought: 'It is dark in here. Machines are humming.',
   stations: LOG_STATIONS, dialogue: ST_DIALOGUE, now: ST_NOW,
+  // Package view: the route of one paper, with what happens at each stop.
+  rides: [{ name: 'a log line', stops: [
+    { x: 140, y: 350, say: 'Mail slot. The Node dropped me here and went straight back to work. Log() returns at once.' },
+    { x: 305, y: 410, say: 'Time clock: ka-chunk! I get the UTC time of the moment it happened, not of the moment I am written.' },
+    { x: 470, y: 410, say: 'The belt. I wait in line behind older papers. First in, first out. The belt has no end.' },
+    { x: 1130, y: 410, say: 'The one arm picks me up: I am the oldest paper now. Only one arm writes, so lines never mix.' },
+    { x: 1172, y: 318 }, { x: 1275, y: 280 }, { x: 1377, y: 318 },
+    { x: 1420, y: 410, say: "The sorter looks for a friend's ID on me. There is none, so I am about the node itself: node.txt." },
+    { x: 1600, y: 250 },
+    { x: 1900, y: 250, say: "node.txt, in the folder of today's UTC date. I am added at the end: the time, two spaces, my words. Done." },
+  ] },
+  { name: "a conversation line", stops: [
+    { x: 140, y: 470, say: () => `Bottom mail slot. A handler dropped me: "hello from ${endpoint(other(scene.node))}: ready". It went straight back to its conversation.` },
+    { x: 305, y: 410, say: 'Time clock: ka-chunk! Stamped with the UTC time of the hello.' },
+    { x: 470, y: 410, say: 'The belt. Papers from the Node and from every handler wait in the same line. First in, first out.' },
+    { x: 1130, y: 410, say: 'The one arm takes me. One writer for all the files, so no two lines are ever written at the same time.' },
+    { x: 1172, y: 318 }, { x: 1275, y: 280 }, { x: 1377, y: 318 },
+    { x: 1420, y: 410, say: () => `The sorter finds a friend's ID on me: ${INFO[other(scene.node)].id.slice(0, 8)}…. The handler knows it because the hello has arrived.` },
+    { x: 1600, y: 570 },
+    { x: 1900, y: 570, say: () => `The conversation file, ${INFO[other(scene.node)].id.slice(0, 8)}….txt, named after the friend's ID. Only this conversation's lines are in it.` },
+  ] }],
   update: updateFactory,
   drawBack: drawLogBack, drawFront: drawLogFront,   // drawStation: LOG_DRAW, set where it is defined
 };
 
+// ---------- the Window room: a display workshop. Each station stands for one
+// thing the Window code really does (MainWindow, its view models, the UI thread).
+const WIN_W = 2400, WIN_H = 1400;
+const WIN_STATIONS = [
+  { id: 'address', name: 'Address plate',    plate: 'ADDRESS', x: 120,  y: 110, w: 380,  h: 150, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'glass',   name: 'The glass',        plate: 'GLASS',   x: 620,  y: 110, w: 1180, h: 230, block: true, term: { side: 'bottom', at: 0.08 } },
+  { id: 'status',  name: 'Status line',      plate: 'STATUS',  x: 1920, y: 110, w: 400,  h: 150, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'connect', name: 'Connect desk',     plate: 'CONNECT', x: 120,  y: 420, w: 360,  h: 170, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'bench',   name: 'Draft box',        plate: 'DRAFT',   x: 620,  y: 560, w: 480,  h: 130, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'scale',   name: 'Byte scale',       plate: 'SCALE',   x: 1360, y: 540, w: 180,  h: 170, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'lever',   name: 'Send lever',       plate: 'SEND',    x: 1600, y: 560, w: 130,  h: 150, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'tabs',    name: 'Tab rack',         plate: 'TABS',    x: 1950, y: 470, w: 330,  h: 300, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'pipe',    name: 'From the handler', plate: 'PIPE',    x: 20,   y: 840, w: 150,  h: 170, block: true, term: { side: 'top',    at: 0.5 } },
+  { id: 'post',    name: 'UI post box',      plate: 'POST',    x: 380,  y: 850, w: 200,  h: 150, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'painter', name: 'The painter',      plate: 'PAINTER', x: 740,  y: 840, w: 180,  h: 170, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'clock',   name: 'Local clock',      plate: 'CLOCK',   x: 1000, y: 850, w: 150,  h: 150, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'history', name: 'Chat history',     plate: 'HISTORY', x: 1450, y: 860, w: 260,  h: 150, block: true, term: { side: 'bottom', at: 0.5 } },
+  { id: 'chute',   name: 'To the handler',   plate: 'CHUTE',   x: 2200, y: 860, w: 180,  h: 170, block: true, term: { side: 'top',    at: 0.5 } },
+];
+// Belts: news comes in from the handler (left), messages go out to the handler (right).
+const WIN_IN_A = [{ x: 170, y: 925 }, { x: 380, y: 925 }];                                                    // pipe → post box
+const WIN_IN_B = [{ x: 920, y: 925 }, { x: 1150, y: 925 }, { x: 1260, y: 925 }, { x: 1260, y: 360 }];        // painter → clock → glass
+const WIN_OUT = [{ x: 1665, y: 560 }, { x: 1665, y: 360 }, { x: 1840, y: 360 }, { x: 1840, y: 945 }, { x: 2200, y: 945 }];   // lever → glass → chute
+const WIN_POST = { x: 480, y: 925 }, WIN_PAINTER = { x: 830, y: 925 };
+const WIN_SPEED = 300, CARRY_TIME = 0.5, PAINT_TIME = 0.6;
+const WIN_LEN = { inA: polyLen(WIN_IN_A), inB: polyLen(WIN_IN_B), out: polyLen(WIN_OUT), outGlass: polyLen(WIN_OUT.slice(0, 2)), clock: 1075 - 920 };
+const START_STATUS = 'Tell your address to the other person, or connect to theirs.';
+function freshWin() { return { items: [], queue: [], painter: null, lines: [], tabs: [], status: START_STATUS, leverHit: 0, connectHit: 0, chuteHit: 0, pipeHit: 0, clockHit: 0 }; }
+const winRoom = { A: freshWin(), B: freshWin() };
+const localHM = d => d.toTimeString().slice(0, 5);
+const winTitle = n => `${INFO[other(n)].id.slice(0, 8)} · ${INFO[other(n)].ip}`;
+// The draft's size, measured like Codec.ChatMessageSize (the longest time text).
+function winBytes(n) { const t = winRoom[n].tabs.length ? N[n].typing.trim() : ''; return t ? jsonBytes({ type: 'chat', text: t, sent: sentStamp() }) : 0; }
+function winCanSend(n) { const b = winBytes(n); return b > 0 && b <= 65536; }
+
+// Events from the scenario (the same moments as in the real window code).
+function winConnect(n) { const w = winRoom[n], o = INFO[other(n)]; w.connectHit = simTime + 600; w.status = `Connecting to ${o.ip} : ${o.port} …`; }
+function winTabOpen(n) { const w = winRoom[n], o = INFO[other(n)]; w.tabs = [{ title: `connecting · ${o.ip}` }]; w.lines = []; w.status = `Connected to ${o.ip} : ${o.port}. Waiting for its hello …`; }
+function winReady(n) { const w = winRoom[n]; if (!w.tabs.length) { w.tabs = [{}]; w.lines = []; } w.tabs[0].title = winTitle(n); w.status = `Chatting with ${winTitle(n)}.`; }
+function winEnd(n) { const w = winRoom[n]; w.status = `Conversation with ${winTitle(n)} ended.`; w.tabs = []; }
+function winSend(n, text) { const w = winRoom[n]; w.leverHit = simTime + 400; w.items.push({ dir: 'out', text, d: 0 }); }
+function winReceive(n, text) { const w = winRoom[n]; w.pipeHit = simTime + 400; w.items.push({ dir: 'in', text, d: 0, stage: 'pipe' }); }
+
+function updateWin(n, dt) {
+  const w = winRoom[n];
+  for (const it of w.items) {
+    if (it.dir === 'out') {
+      it.d += WIN_SPEED * dt;
+      if (!it.shown && it.d >= WIN_LEN.outGlass) { it.shown = true; w.lines.push({ me: true, text: it.text, at: simDate() }); }
+      if (it.d >= WIN_LEN.out) { it.done = true; w.chuteHit = simTime + 400; }
+    } else if (it.stage === 'pipe') {
+      it.d += WIN_SPEED * dt;
+      if (it.d >= WIN_LEN.inA) { it.stage = 'queued'; w.queue.push(it); }
+    } else if (it.stage === 'glass') {
+      it.d += WIN_SPEED * dt;
+      if (!it.stamped && it.d >= WIN_LEN.clock) { it.stamped = true; w.clockHit = simTime + 300; }
+      if (it.d >= WIN_LEN.inB) { it.done = true; w.lines.push({ me: false, text: it.text, at: simDate() }); }
+    }
+  }
+  // The painter (UI thread) takes the oldest news from the post box, one at a time.
+  if (!w.painter && w.queue.length) { const it = w.queue.shift(); it.stage = 'paint'; w.painter = { item: it, t: 0 }; }
+  if (w.painter) {
+    w.painter.t += dt / (CARRY_TIME + PAINT_TIME);
+    if (w.painter.t >= 1) { const it = w.painter.item; it.stage = 'glass'; it.d = 0; w.painter = null; }
+  }
+  w.items = w.items.filter(it => !it.done);
+  if (w.lines.length > 30) w.lines.splice(0, w.lines.length - 30);
+}
+function winItemPos(w, it) {
+  if (it.dir === 'out') return pointAt(WIN_OUT, it.d);
+  if (it.stage === 'pipe') return pointAt(WIN_IN_A, it.d);
+  if (it.stage === 'queued') { const k = w.queue.indexOf(it); return { x: WIN_POST.x - 40 + (k % 4) * 26, y: WIN_POST.y - 6 - Math.floor(k / 4) * 10 }; }
+  if (it.stage === 'paint') { const c = Math.min(1, w.painter.t * (CARRY_TIME + PAINT_TIME) / CARRY_TIME); return { x: WIN_POST.x + (WIN_PAINTER.x - WIN_POST.x) * c, y: WIN_POST.y - Math.sin(c * Math.PI) * 60 }; }
+  return pointAt(WIN_IN_B, it.d);
+}
+
+ROOMS.window = {
+  name: 'Window', w: WIN_W, h: WIN_H,
+  spawn: { x: 130, y: WIN_H - 200 },
+  exit: { x: 70, y: WIN_H - 26, w: 120, h: 26 },
+  door: { at: 0.2 },   // left of the wire to the handler, so the robot does not block it
+  enterThought: 'So bright in here. Somebody is typing.',
+  stations: WIN_STATIONS, dialogue: WIN_DIALOGUE, now: WIN_NOW,
+  rides: [
+    { name: 'a message going out', stops: [
+      { x: 860, y: 625, say: 'Draft box. The human typed me: "hi". I stay here until Send.' },
+      { x: 1450, y: 625, say: () => `Byte scale. The Codec weighs me: ${jsonBytes({ type: 'chat', text: 'hi', sent: sentStamp() })} bytes of 65,536. I fit, so the Send lever is green.` },
+      { x: 1665, y: 600, say: 'Send lever: pulled!' },
+      { x: 1665, y: 350, say: 'The glass. I am painted here first: "you: hi". The human sees me before I am even sent.' },
+      { x: 1840, y: 350 }, { x: 1840, y: 945 },
+      { x: 2200, y: 945, say: 'The chute, down to the handler. The Window never touches the network itself.' },
+    ] },
+    { name: 'a message coming in', stops: [
+      { x: 170, y: 925, say: 'From the handler. I arrive on a background thread, so I may not touch the glass.' },
+      { x: 480, y: 925, say: 'UI post box: Dispatcher.UIThread.Post. The handler drops me here and goes back to work.' },
+      { x: 830, y: 925, say: 'The painter is the UI thread. It takes the oldest news, one at a time. Only it may change the window.' },
+      { x: 1075, y: 925, say: 'Local clock. My UTC time becomes local time, for human eyes.' },
+      { x: 1260, y: 925 },
+      { x: 1260, y: 360, say: 'The glass. Painted: "them: hi". The human can read me now.' },
+    ] },
+  ],
+  update: updateWin,
+  drawBack: drawWinBack, drawFront: drawWinFront,   // drawStation: WIN_DRAW, set where it is defined
+};
+
 // ---------- the room engine ----------
+// Every room gets a package-view port next to its exit.
+const PORT_STATION = { id: 'port', name: 'Package view', plate: 'PACKAGE', x: 260, y: 1150, w: 160, h: 120, block: true, term: { side: 'top', at: 0.5 } };
+const PORT_DIALOGUE = {
+  greet: [['R', 'Hello. What are you?'], ['P', 'The package view. Choose a package, and you ride the belts inside it.'], ['P', 'The guards do not like extra packages on the belts. Just so you know.']],
+  twin: [['P', 'Every factory has a port like me.']],
+  topics: [],
+};
+for (const r of Object.values(ROOMS)) r.stations.push({ ...PORT_STATION });
 function roomOf() { return ROOMS[scene.room]; }
 function inRoom(type, n) { return scene.kind === 'inside' && scene.room === type && scene.node === n; }
 // One talkable instance of each station per room and node (the two nodes' rooms are copies).
@@ -1001,21 +1336,29 @@ function nearDoor() {
   }
   return null;
 }
-function enterRoom(p) {
+function enterRoom(p, back = { x: robot.x, y: robot.y }) {
   const r = ROOMS[p.type];
   if (swarm) for (const a of swarm.bodies) a.state = 'leave';
   robot.pushed = null;
-  scene = { kind: 'inside', node: p.node, room: p.type, back: { x: robot.x, y: robot.y } };
+  guard = null; pkgRide = null;
+  scene = { kind: 'inside', node: p.node, room: p.type, back };
   robot.x = r.spawn.x; robot.y = r.spawn.y; robot.target = null; robot.dir = 1;
   snapCamera();
   think(r.enterThought, 3000);
 }
 function tryEnter(p) {
-  if (doorOpen[p.id]) enterRoom(p);
+  if (doorOpen[p.id]) {
+    // Roll slowly into the doorway while everything goes dark, then the room fades in.
+    const d = doorRect(p), out = 1.6, back = { x: robot.x, y: robot.y };   // come back out where we stood
+    sfxEnter();
+    fadeTo(() => enterRoom(p, back), out, 0.9, { x: (d.x + d.w / 2 - robot.x) / out, y: (d.y + d.h * 0.45 - robot.y) / out });
+  }
   else think('The door is locked. The terminal wants a password.');
 }
+function leaveRoom() { fadeTo(exitRoom, 0.45, 0.6); }
 function exitRoom() {
   const back = scene.back;
+  guard = null; pkgRide = null;
   scene = { kind: 'world' };
   robot.x = back.x; robot.y = back.y; robot.target = null;
   snapCamera();
@@ -1026,6 +1369,14 @@ function exitRoom() {
 const RS = 1.25;   // robot drawing scale (about the size of a packet)
 const robot = { x: BOARD.A.x + 600, y: BOARD.A.y + 880, dir: 1, moving: false, phase: 0, target: null, ride: null, thought: null, pushed: null };
 const keys = new Set();
+// Shift: a short boost of speed, then a cooldown.
+const BOOST_TIME = 0.45, BOOST_FACTOR = 2.6, BOOST_COOLDOWN = 5;   // seconds, speed factor, seconds
+robot.boost = 0; robot.boostWait = 0; robot.trail = [];
+function tryBoost() {
+  if (robot.boostWait > 0 || robot.ride || robot.pushed || dlg.part) return;
+  robot.boost = BOOST_TIME; robot.boostWait = BOOST_COOLDOWN;
+  sfxBoost();
+}
 const KEYMAP = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
 
 function rectDist(px, py, r) {
@@ -1084,9 +1435,10 @@ function hop() {
   robot.target = null;
 }
 function interact() {
-  if (robot.ride || robot.pushed) return;
+  if (pkgRide) { rideSkip(); return; }
+  if (robot.ride || robot.pushed || locked()) return;
   if (scene.kind === 'inside') {
-    if (nearExit()) return exitRoom();
+    if (nearExit()) return leaveRoom();
     const t = nearTerminal();
     if (t) return openDialog(t);
     if (nearestStation()) think('This machine has a terminal somewhere. Let me look around it.');
@@ -1109,6 +1461,8 @@ function updateRobot(dt) {
     if (r.d >= r.len) { const d = dock(r.to); robot.x = d.x; robot.y = d.y - 60; robot.ride = null; }
     return;
   }
+  robot.boost = Math.max(0, robot.boost - dt); robot.boostWait = Math.max(0, robot.boostWait - dt);
+  if (locked()) { if (!fade) robot.moving = false; return; }   // a door, a ride or a guard is in control
   if (robot.pushed) { robot.moving = false; return; }   // the antibodies are in control
   let vx = 0, vy = 0;
   if (!dlg.part) {
@@ -1121,14 +1475,14 @@ function updateRobot(dt) {
     if (t.talk && nearTerminal() === t.talk) { robot.target = null; openDialog(t.talk); }
     else if (t.hop && nearDock()) { robot.target = null; hop(); }
     else if (t.door && nearDoor() === t.door) { robot.target = null; tryEnter(t.door); }
-    else if (t.exit && nearExit()) { robot.target = null; exitRoom(); }
+    else if (t.exit && nearExit()) { robot.target = null; leaveRoom(); }
     else if (d < 6) robot.target = null;
     else { vx = dx / d; vy = dy / d; }
   }
   const len = Math.hypot(vx, vy);
   robot.moving = false;
   if (len > 0) {
-    const step = ROBOT_SPEED * dt;
+    const step = ROBOT_SPEED * dt * (robot.boost > 0 ? BOOST_FACTOR : 1);
     const moved = tryMove((vx / len) * step, (vy / len) * step);
     if (!moved && robot.target) { robot.target = null; think('Something is in my way.'); }
     robot.moving = moved;
@@ -1254,6 +1608,10 @@ addEventListener('keydown', e => {
     return;
   }
   if (e.target.tagName === 'INPUT') return;   // typing a password
+  if (pkgRide) {
+    if (e.key === 'Escape') rideStop(); else if (e.key === ' ' || e.key === 'Enter' || e.code === 'KeyE') rideSkip();
+    e.preventDefault(); return;
+  }
   if (dlg.part) {
     if (e.key === 'Escape') { closeDialog(); e.preventDefault(); return; }
     if (e.key === ' ' || e.key === 'Enter') { if (!dlg.optionsShown) { skipLine(); e.preventDefault(); } return; }
@@ -1262,7 +1620,8 @@ addEventListener('keydown', e => {
     return;
   }
   if (e.target.tagName === 'SELECT') return;
-  if (KEYMAP[e.code]) { keys.add(e.code); e.preventDefault(); }
+  if (KEYMAP[e.code]) { keys.add(e.code); e.preventDefault(); if (e.shiftKey && !e.repeat) tryBoost(); }
+  if (e.key === 'Shift' && !e.repeat && [...keys].some(k => KEYMAP[k])) tryBoost();
   if (e.code === 'KeyE' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); interact(); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
@@ -1306,7 +1665,7 @@ cv.addEventListener('pointerup', () => {
   if (!drag) return;
   const d = drag; drag = null;
   cv.style.cursor = 'default';
-  if (d.moved || dlg.part || robot.ride || robot.pushed) return;
+  if (d.moved || dlg.part || robot.ride || robot.pushed || locked()) return;
   if (scene.kind === 'inside') {
     const EXIT = roomOf().exit;
     if (inRect(d.start, { x: EXIT.x - 20, y: EXIT.y - 60, w: EXIT.w + 40, h: 90 })) robot.target = { x: EXIT.x + EXIT.w / 2, y: EXIT.y - 30, exit: true };
@@ -1341,6 +1700,163 @@ cv.addEventListener('pointerup', () => {
 });
 
 // =====================================================================
+// DOOR FADES, PACKAGE VIEW AND THE GUARD
+// =====================================================================
+// fade: the screen goes black (a: 0 → 1), `then` runs, and it comes back (a: 1 → 0).
+let fade = null;
+function fadeTo(then, outTime, inTime, slide) {
+  fade = { a: 0, dir: 1, out: outTime, in: inTime, then, slide };
+  robot.target = null; keys.clear();
+}
+function updateFade(dt) {
+  if (!fade) return;
+  if (fade.dir > 0) {
+    if (fade.slide) { robot.x += fade.slide.x * dt; robot.y += fade.slide.y * dt; robot.moving = true; robot.phase += dt * 8; }
+    fade.a = Math.min(1, fade.a + dt / fade.out);
+    if (fade.a >= 1) { fade.then(); fade.dir = -1; fade.slide = null; robot.moving = false; }
+  } else {
+    fade.a -= dt / fade.in;
+    if (fade.a <= 0) fade = null;
+  }
+}
+// The robot cannot be driven during a fade, a ride, or while the guard holds it.
+function locked() { return !!fade || !!pkgRide || (!!guard && guard.state !== 'leave'); }
+
+// Package view: the camera becomes a package and rides one route through the room.
+let pkgRide = null;
+const RIDE_SPEED = 300;
+function startRide(ride) {
+  const pts = ride.stops;
+  pkgRide = { ride, pts, len: polyLen(pts), d: 0, next: 0, dwell: 0, caption: '' };
+  robot.target = null; keys.clear();
+  sfxModem();
+}
+function rideText(stop) { return typeof stop.say === 'function' ? stop.say() : stop.say; }
+function ridePos() { return pointAt(pkgRide.pts, pkgRide.d); }
+// Distance along the route to stop i.
+function stopDist(pts, i) { return polyLen(pts.slice(0, i + 1)); }
+function updateRide(dt) {
+  const r = pkgRide;
+  if (!r) return;
+  if (r.dwell > 0) { r.dwell -= dt; return; }
+  while (r.next < r.pts.length && stopDist(r.pts, r.next) <= r.d + 0.01) {
+    const st = r.pts[r.next++];
+    if (st.say) { r.caption = rideText(st); r.dwell = Math.max(2.4, r.caption.length * 0.05); sfxClick(); return; }
+  }
+  if (r.d >= r.len) { pkgRide = null; startGuard(); return; }
+  r.d = Math.min(r.len, r.d + RIDE_SPEED * dt);
+}
+function rideSkip() { if (pkgRide && pkgRide.dwell > 0) pkgRide.dwell = 0; }
+function rideStop() { if (pkgRide) { pkgRide = null; startGuard(); } }
+
+// The guard: an antibody that does not like extra packages on the belts (game rule, not Chatap).
+let guard = null;
+const rideStrikes = {};   // "room.node" → rides since the robot was last thrown out
+const GUARD_SPEED = 520;
+function startGuard() {
+  const key = `${scene.room}.${scene.node}`, strike = rideStrikes[key] = (rideStrikes[key] || 0) + 1;
+  const ex = roomOf().exit;
+  guard = { x: ex.x + ex.w / 2, y: ex.y - 30, state: 'come', t: 0, strike, key, wob: 0, say: '' };
+  sfxAlarm();
+}
+function moveToward(o, tx, ty, step) {
+  const dx = tx - o.x, dy = ty - o.y, d = Math.hypot(dx, dy);
+  if (d <= step) { o.x = tx; o.y = ty; return true; }
+  o.x += dx / d * step; o.y += dy / d * step; return false;
+}
+function updateGuard(dt) {
+  const g = guard;
+  if (!g) return;
+  g.t += dt; g.wob += dt * 9;
+  const ex = roomOf().exit;
+  if (g.state === 'come') {
+    if (moveToward(g, robot.x - 80, robot.y - 50, GUARD_SPEED * dt)) {
+      g.state = 'talk'; g.t = 0;
+      g.say = g.strike === 1
+        ? 'WARNING. Foreign package on the belt. Do not add packages to the belt again, or you will be removed from the factory.'
+        : 'Second foreign package. You are removed from the factory.';
+    }
+  } else if (g.state === 'talk') {
+    if (g.t > (g.strike === 1 ? 5 : 2.5)) {
+      if (g.strike === 1) { g.state = 'leave'; g.say = ''; }
+      else {
+        g.state = 'push'; g.t = 0; g.say = '';
+        g.route = [{ x: ex.x + ex.w / 2, y: robot.y }, { x: ex.x + ex.w / 2, y: ex.y - 20 }];
+        think('Hey! I was only looking!');
+      }
+    }
+  } else if (g.state === 'push') {
+    // Push the robot along the wall to the exit, then out.
+    const to = g.route[0];
+    if (moveToward(robot, to.x, to.y, 260 * dt)) g.route.shift();
+    robot.moving = true; robot.phase += dt * 10;
+    g.x = robot.x + (robot.x > ex.x + ex.w / 2 ? 60 : 0); g.y = robot.y - 70;
+    if (!g.route.length || g.t > 6) {
+      g.state = 'gone'; rideStrikes[g.key] = 0;
+      fadeTo(() => { exitRoom(); think('I got thrown out of the factory.'); }, 0.6, 0.8);
+    }
+  } else if (g.state === 'leave') {
+    if (moveToward(g, ex.x + ex.w / 2, ex.y - 30, GUARD_SPEED * dt)) guard = null;
+  }
+}
+function drawAntibody(x, y, k, wob) {
+  ctx.fillStyle = C.dk; ctx.beginPath(); ctx.arc(x, y, 26 * k, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffe000'; ctx.beginPath(); ctx.arc(x, y, 22 * k, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#d00000'; ctx.fillRect(x - 5 * k, y - 15 * k, 10 * k, 19 * k); ctx.fillRect(x - 5 * k, y + 8 * k, 10 * k, 8 * k);
+  // tiny legs, wiggling
+  ctx.strokeStyle = C.dk; ctx.lineWidth = 4 * k;
+  const l = Math.sin(wob * 2) * 6 * k;
+  ctx.beginPath(); ctx.moveTo(x - 12 * k, y + 20 * k); ctx.lineTo(x - 18 * k + l, y + 34 * k); ctx.moveTo(x + 12 * k, y + 20 * k); ctx.lineTo(x + 18 * k - l, y + 34 * k); ctx.stroke();
+}
+function drawGuard() {
+  const g = guard;
+  if (!g || g.state === 'gone' || scene.kind !== 'inside') return;
+  drawAntibody(g.x, g.y, AB * 1.6, g.wob);
+  if (g.say) bubble(g.say, g.x, g.y - 50, 11, 280);
+}
+// The package itself, and the dark edges of the package view.
+function drawRidePackage() {
+  if (!pkgRide) return;
+  const p = ridePos(), pulse = 1 + Math.sin(performance.now() / 150) * 0.08;
+  ctx.fillStyle = 'rgba(255,240,120,0.35)'; ctx.beginPath(); ctx.arc(p.x, p.y, 34 * pulse, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = C.dk; ctx.fillRect(p.x - 17, p.y - 13, 34, 26);
+  ctx.fillStyle = '#fff4c0'; ctx.fillRect(p.x - 15, p.y - 11, 30, 22);
+  ctx.strokeStyle = C.lo; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x - 15, p.y - 11); ctx.lineTo(p.x, p.y + 1); ctx.lineTo(p.x + 15, p.y - 11); ctx.stroke();
+}
+function drawRideOverlay() {
+  if (!pkgRide) return;
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  const cw = view.cw, ch = view.ch;
+  const g = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.25, cw / 2, ch / 2, Math.max(cw, ch) * 0.7);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.85)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+  // caption box
+  const w = Math.min(680, cw - 32), x = (cw - w) / 2;
+  font(15, false);
+  const lines = pkgRide.caption ? wrapText(pkgRide.caption, w - 28) : [];
+  const h = 40 + Math.max(1, lines.length) * 20, y = ch - h - 16;
+  bevel(x, y, w, h, true, C.face, 2);
+  titleBar(x + 3, y + 3, w - 6, 20);
+  txt(`Package view — ${pkgRide.ride.name}`, x + 10, y + 18, 13, '#fff', true);
+  font(15, false); ctx.fillStyle = '#000'; ctx.textAlign = 'left';
+  lines.forEach((l, i) => ctx.fillText(l, x + 14, y + 44 + i * 20));
+  txt('Space: go on · Esc: stop', x + w - 10, y + 18, 11, '#c0c0ff', false, 'right');
+}
+function drawFade() {
+  if (!fade) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = `rgba(0,0,0,${Math.min(1, fade.a)})`; ctx.fillRect(0, 0, cv.width, cv.height);
+}
+function drawPortStation(s) {
+  drawStationBox(s, s.name);
+  bevel(s.x + 14, s.y + 36, s.w - 28, s.h - 48, false, '#101820', 2);
+  const k = (performance.now() / 600) % 1;
+  ctx.strokeStyle = `rgba(255,240,120,${1 - k})`; ctx.lineWidth = 2;
+  ctx.strokeRect(s.x + s.w / 2 - 12 - k * 20, s.y + 72 - 9 - k * 14, 24 + k * 40, 18 + k * 28);
+  ctx.fillStyle = '#fff4c0'; ctx.fillRect(s.x + s.w / 2 - 12, s.y + 63, 24, 18);
+}
+
+// =====================================================================
 // DIALOGUE
 // =====================================================================
 const dlgEl = document.getElementById('dlg'), dlgOpts = document.getElementById('dlgOpts');
@@ -1351,8 +1867,8 @@ const dlg = { part: null, queue: [], cur: null, optionsShown: false, delay: 0, a
 const doorOpen = {}, doorAnim = {};   // by part id; doors start closed
 const TOTAL_TOPICS = [...Object.values(DIALOGUE), ...Object.values(ROOMS).flatMap(r => Object.values(r.dialogue))].reduce((s, d) => s + d.topics.length, 0);
 
-function dialogueOf(t) { return t.kind === 'station' ? ROOMS[t.room].dialogue[t.st.id] : DIALOGUE[t.type]; }
-function nowLines(t) { return t.kind === 'station' ? ROOMS[t.room].now[t.st.id](t.node) : NOW[t.type](t.node); }
+function dialogueOf(t) { return t.kind !== 'station' ? DIALOGUE[t.type] : t.st.id === 'port' ? PORT_DIALOGUE : ROOMS[t.room].dialogue[t.st.id]; }
+function nowLines(t) { return t.kind !== 'station' ? NOW[t.type](t.node) : t.st.id === 'port' ? ['Waiting for a passenger.'] : ROOMS[t.room].now[t.st.id](t.node); }
 function linesOf(topic, t) { return typeof topic.lines === 'function' ? topic.lines(t.node) : topic.lines; }
 function available(t) {
   return dialogueOf(t).topics.filter(tp =>
@@ -1421,6 +1937,9 @@ function showOptions() {
     const isNew = !asked && !firstLook && !seen.has(t.id);
     make((asked ? '✓ ' : '') + t.ask, () => { know.asked.add(key); ask([['R', t.ask], ...linesOf(t, p)]); }, asked ? 'asked' : '', isNew ? 'new' : '');
   }
+  if (p.kind === 'station' && p.st.id === 'port') {
+    for (const ride of ROOMS[p.room].rides) make(`Ride ${ride.name}`, () => { closeDialog(); startRide(ride); }, 'action');
+  }
   if (p.kind !== 'station') {
     // A locked machine asks for its password. An unlocked one has a quiz about itself.
     if (!progress.unlocked.has(p.type)) make('Input the password', () => askPassword(p), 'action');
@@ -1476,7 +1995,7 @@ function updateDialog(dt) {
 // =====================================================================
 // QUIZZES AND PASSWORDS
 // =====================================================================
-const progress = { unlocked: new Set(['window']), passed: new Set(), earned: new Set() };
+const progress = { unlocked: new Set(), passed: new Set(), earned: new Set() };
 const quizEl = document.getElementById('quiz'), quizOpts = document.getElementById('quizOpts');
 const quizNum = document.getElementById('quizNum'), quizText = document.getElementById('quizText');
 const quiz = { part: null, items: [], i: 0, wrong: [], phase: 'off' };   // phase: off, ask, result
@@ -1487,6 +2006,8 @@ function unlock(type) {
   progress.unlocked.add(type);
   for (const n of ['A', 'B']) doorOpen[`${n}.${type}`] = true;
 }
+
+unlock(ORDER[0]);   // the first machine is open from the start
 
 function askPassword(p) {
   dlgOpts.innerHTML = '';
@@ -2008,17 +2529,28 @@ function drawSwarm() {
     ctx.beginPath(); ctx.moveTo(x - 12 * k, y + 20 * k); ctx.lineTo(x - 18 * k + l, y + 34 * k); ctx.moveTo(x + 12 * k, y + 20 * k); ctx.lineTo(x + 18 * k - l, y + 34 * k); ctx.stroke();
   }
 }
+// Speed lines behind the robot while the boost is on.
+function drawBoostTrail() {
+  if (robot.boost > 0 && robot.moving) robot.trail.push({ x: robot.x, y: robot.y, t: performance.now() });
+  const now = performance.now();
+  robot.trail = robot.trail.filter(p => now - p.t < 260);
+  for (const p of robot.trail) {
+    const a = 1 - (now - p.t) / 260;
+    ctx.fillStyle = `rgba(255,255,255,${0.5 * a})`;
+    for (let k = 0; k < 3; k++) ctx.fillRect(p.x - 14 * RS + k * 9 * RS, p.y - (10 + k * 12) * RS, 8 * RS, 2 * RS);
+  }
+}
 function drawRobotLabels() {
   const top = robot.y - 50 * RS - (swarm && swarm.state !== 'leave' && scene.kind === 'world' ? 60 : 0);
   if (robot.thought && robot.thought.until > performance.now()) { bubble(robot.thought.text, robot.x, top - 4, 11, 260); return; }
-  if (dlg.part || robot.ride || robot.pushed) return;
+  if (dlg.part || robot.ride || robot.pushed || locked()) return;
   let hint = null, faint = false;
   if (scene.kind === 'inside') {
     if (nearExit()) hint = 'E: go back outside';
     else { const t = nearTerminal(); if (t) hint = `E: connect to the ${shownName(t)} terminal`; else if (nearestStation()) { hint = 'Where is this machine\'s terminal?'; faint = true; } }
   }
   else if (nearDock()) { hint = tcp === 'up' ? 'E: hop on the TCP cable' : 'The cable is gone (no connection)'; faint = tcp !== 'up'; }
-  else if (nearDoor()) { const o = doorOpen[nearDoor()]; hint = o ? 'E: enter the LogWriter' : 'The door is closed'; faint = !o; }
+  else if (nearDoor()) { const d = nearDoor(), o = doorOpen[d.id]; hint = o ? `E: enter the ${d.name}` : 'Locked: the terminal wants a password'; faint = !o; }
   else { const t = nearTerminal(); if (t) hint = `E: connect to the ${shownName(t)} terminal`; else if (nearestPart()) { hint = 'Where is this machine\'s terminal?'; faint = true; } }
   if (hint) labelBox(hint, robot.x, top - 6, faint, 11);
 }
@@ -2047,7 +2579,7 @@ function drawInside() {
   // stations: a box with a title bar, unless the room draws its own (box: false = no box)
   for (const s of r.stations) {
     if (s.box === false) continue;
-    const own = r.drawStation && r.drawStation[s.id];
+    const own = s.id === 'port' ? drawPortStation : r.drawStation && r.drawStation[s.id];
     if (own) own(s, n); else drawStationBox(s, s.name);
   }
   for (const st of r.stations) drawTerminalBox(termRect(st), dlg.part === ST_INST[scene.room][n][st.id]);
@@ -2156,6 +2688,161 @@ function drawLogFront(n) {
   ctx.fillStyle = '#202020'; ctx.beginPath(); ctx.arc(tip.x, tip.y - 14, 8, 0, Math.PI * 2); ctx.fill();
 }
 
+// ---------- Window room drawing ----------
+// Word wrap for the current font.
+function wrapText(str, maxW) {
+  const out = []; let line = '';
+  for (const word of str.split(' ')) {
+    const t = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(t).width > maxW) { out.push(line); line = word; } else line = t;
+  }
+  if (line) out.push(line);
+  return out;
+}
+function drawWinBack(n) {
+  const roll = (simTime / 12) % 30;
+  for (const pts of [WIN_IN_A, [WIN_POST, WIN_PAINTER], WIN_IN_B, WIN_OUT]) {
+    strokePts(pts, 34, '#1a1a1a'); strokePts(pts, 26, '#3c3c3c');
+    ctx.setLineDash([6, 24]); ctx.lineDashOffset = -roll; strokePts(pts, 26, '#5a5a5a'); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  }
+  // light from the glass falls on the floor
+  const g = ctx.createLinearGradient(0, 340, 0, 700);
+  g.addColorStop(0, 'rgba(160,220,255,0.18)'); g.addColorStop(1, 'rgba(160,220,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(620, 340, 1180, 360);
+}
+function winInner(s, fill = '#fff') { bevel(s.x + 10, s.y + 34, s.w - 20, s.h - 44, false, fill, 2); }
+const WIN_DRAW = {
+  address(s, n) {
+    drawStationBox(s, s.name); winInner(s);
+    txt('You are:', s.x + 22, s.y + 62, 15, C.lo, true);
+    txt(`${INFO[n].ip} : ${INFO[n].port}`, s.x + 22, s.y + 96, 26, C.navy, true);
+    txt(`also 127.0.0.1 : ${INFO[n].port}`, s.x + 22, s.y + 124, 14, '#000');
+  },
+  glass(s, n) {
+    const w = winRoom[n];
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x + 8, s.y + 8, s.w, s.h);
+    bevel(s.x, s.y, s.w, s.h, true, '#303030', 6);
+    ctx.fillStyle = '#d8ecf8'; ctx.fillRect(s.x + 16, s.y + 16, s.w - 32, s.h - 32);
+    // the real Chatap window, painted small
+    ctx.fillStyle = C.navy; ctx.fillRect(s.x + 16, s.y + 16, s.w - 32, 24);
+    txt('Chatap', s.x + 26, s.y + 34, 15, '#fff', true);
+    txt(`You are: ${INFO[n].ip} : ${INFO[n].port}`, s.x + 26, s.y + 60, 14, '#000', true);
+    if (!w.tabs.length) { txt('(no conversation)', s.x + s.w / 2, s.y + 140, 18, C.lo, false, 'center'); return; }
+    bevel(s.x + 26, s.y + 70, 260, 24, true, '#fff', 1);
+    txt(fit(w.tabs[0].title, 240), s.x + 34, s.y + 87, 13, '#000', true);
+    w.lines.slice(-5).forEach((l, i) => {
+      const y = s.y + 116 + i * 20, x = s.x + (l.me ? 120 : 30);
+      txt(localHM(l.at), x, y, 13, C.lo);
+      txt(l.me ? 'you:' : 'them:', x + 50, y, 13, '#000', true);
+      font(13, false); ctx.fillStyle = '#000'; ctx.textAlign = 'left'; ctx.fillText(fit(l.text, s.w - 260), x + 100, y);
+    });
+  },
+  status(s, n) {
+    drawStationBox(s, s.name); winInner(s);
+    font(14, false); ctx.fillStyle = '#000'; ctx.textAlign = 'left';
+    wrapText(winRoom[n].status, s.w - 44).slice(0, 4).forEach((l, i) => ctx.fillText(l, s.x + 20, s.y + 56 + i * 18));
+  },
+  connect(s, n) {
+    const w = winRoom[n], typing = !w.tabs.length ? N[n].typing : '', [ip, port] = typing.split(':');
+    drawStationBox(s, s.name);
+    txt('IP', s.x + 16, s.y + 66, 14, '#000', true); bevel(s.x + 50, s.y + 48, 180, 26, false, '#fff', 2); txt(ip || '', s.x + 56, s.y + 66, 14, '#000');
+    txt('port', s.x + 16, s.y + 106, 14, '#000', true); bevel(s.x + 64, s.y + 88, 90, 26, false, '#fff', 2); txt(port || '', s.x + 70, s.y + 106, 14, '#000');
+    bevel(s.x + 200, s.y + 120, 140, 34, w.connectHit <= simTime, w.connectHit > simTime ? '#ffe000' : C.face, 2);
+    txt('Connect', s.x + 270, s.y + 143, 16, '#000', true, 'center');
+  },
+  bench(s, n) {
+    const w = winRoom[n], t = w.tabs.length ? N[n].typing : '';
+    drawStationBox(s, s.name); winInner(s);
+    font(16, false); ctx.fillStyle = t ? '#000' : C.lo; ctx.textAlign = 'left';
+    ctx.fillText(fit(t || 'type a message …', s.w - 50), s.x + 20, s.y + 80);
+    if (t && Math.floor(performance.now() / 500) % 2) { const cw = ctx.measureText(fit(t, s.w - 50)).width; ctx.fillRect(s.x + 22 + cw, s.y + 64, 2, 20); }
+  },
+  scale(s, n) {
+    const b = winBytes(n), over = b > 65536;
+    drawStationBox(s, s.name);
+    const cx = s.x + s.w / 2, cy = s.y + 110, a = Math.PI * (1 + Math.min(1, Math.sqrt(b / 65536)));
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 52, Math.PI, 0); ctx.fill(); ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = over ? '#c00000' : C.dk; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * 44, cy + Math.sin(a) * 44); ctx.stroke();
+    txt(`${b} B`, cx, cy + 26, 16, over ? '#c00000' : '#000', true, 'center');
+    txt('of 65,536', cx, cy + 44, 12, C.lo, false, 'center');
+  },
+  lever(s, n) {
+    const w = winRoom[n], pulled = w.leverHit > simTime, ok = winCanSend(n);
+    drawStationBox(s, s.name);
+    const bx = s.x + s.w / 2, by = s.y + 120, a = pulled ? 0.6 : -0.6;
+    ctx.strokeStyle = '#303030'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + Math.sin(a) * 60, by - Math.cos(a) * 60); ctx.stroke();
+    ctx.fillStyle = ok || pulled ? '#c00000' : '#808080'; ctx.beginPath(); ctx.arc(bx + Math.sin(a) * 60, by - Math.cos(a) * 60, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = ok ? '#20c040' : '#606060'; ctx.fillRect(s.x + 14, s.y + 128, 24, 12);
+    txt('SEND', s.x + s.w - 14, s.y + 140, 13, ok ? '#000' : C.lo, true, 'right');
+  },
+  tabs(s, n) {
+    const w = winRoom[n];
+    drawStationBox(s, s.name); winInner(s, '#e8e8e8');
+    if (!w.tabs.length) { txt('(no tabs)', s.x + s.w / 2, s.y + 160, 16, C.lo, false, 'center'); return; }
+    w.tabs.forEach((tab, i) => {
+      bevel(s.x + 24, s.y + 52 + i * 50, s.w - 48, 40, true, '#fff', 2);
+      txt(fit(tab.title, s.w - 70), s.x + 34, s.y + 78 + i * 50, 15, '#000', true);
+    });
+    txt('handler ⇄ tab', s.x + s.w / 2, s.y + s.h - 22, 13, C.lo, false, 'center');
+  },
+  pipe(s, n) {
+    const w = winRoom[n];
+    drawStationBox(s, 'From handler');
+    ctx.fillStyle = w.pipeHit > simTime ? '#ffe000' : '#606060'; ctx.fillRect(s.x + 40, s.y + 70, 70, 50);
+    ctx.fillStyle = '#202020'; ctx.fillRect(s.x + 100, s.y + 78, 50, 34);
+    txt('background', s.x + s.w / 2, s.y + 144, 12, '#000', true, 'center');
+    txt('thread', s.x + s.w / 2, s.y + 158, 12, '#000', true, 'center');
+  },
+  post(s, n) {
+    drawStationBox(s, s.name);
+    ctx.fillStyle = '#c00000'; ctx.fillRect(s.x + 20, s.y + 40, s.w - 40, s.h - 50);
+    ctx.fillStyle = '#200000'; ctx.fillRect(s.x + 50, s.y + 56, s.w - 100, 10);
+    txt(`${winRoom[n].queue.length} waiting`, s.x + s.w / 2, s.y + s.h - 16, 14, '#fff', true, 'center');
+  },
+  painter(s, n) {
+    const w = winRoom[n], busy = !!w.painter;
+    drawStationBox(s, s.name);
+    const a = busy ? Math.sin(performance.now() / 90) * 0.6 : 0, bx = s.x + s.w / 2, by = s.y + 130;
+    ctx.strokeStyle = '#7a4a10'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + Math.sin(a) * 60, by - Math.cos(a) * 60); ctx.stroke();
+    ctx.fillStyle = '#1060ff'; ctx.fillRect(bx + Math.sin(a) * 60 - 8, by - Math.cos(a) * 60 - 14, 16, 16);
+    txt('UI thread', bx, s.y + s.h - 12, 13, '#000', true, 'center');
+  },
+  clock(s, n) {
+    const w = winRoom[n], d = simDate();
+    drawStationBox(s, s.name); winInner(s, w.clockHit > simTime ? '#ffffc0' : '#fff');
+    txt(localHM(d), s.x + s.w / 2, s.y + 92, 30, C.navy, true, 'center');
+    txt('local', s.x + s.w / 2, s.y + 110, 12, C.lo, false, 'center');
+    txt(`UTC ${d.toISOString().slice(11, 16)}`, s.x + s.w / 2, s.y + 132, 13, '#000', true, 'center');
+  },
+  history(s) {
+    drawStationBox(s, s.name);
+    bevel(s.x + 20, s.y + 48, s.w - 40, 70, true, '#b08040', 3);
+    ctx.fillStyle = '#5a3a10'; ctx.fillRect(s.x + s.w / 2 - 30, s.y + 76, 60, 10);
+    txt('earlier sessions', s.x + s.w / 2, s.y + s.h - 14, 13, '#000', true, 'center');
+  },
+  chute(s, n) {
+    const w = winRoom[n];
+    drawStationBox(s, 'To handler');
+    ctx.fillStyle = w.chuteHit > simTime ? '#ffe000' : '#606060'; ctx.fillRect(s.x + 20, s.y + 70, 90, 50);
+    ctx.fillStyle = '#202020'; ctx.fillRect(s.x + 100, s.y + 78, 70, 34);
+    txt('→ handler', s.x + s.w / 2, s.y + 150, 13, '#000', true, 'center');
+  },
+};
+ROOMS.window.drawStation = WIN_DRAW;
+// In front of the stations: the envelopes.
+function drawWinFront(n) {
+  const w = winRoom[n];
+  for (const it of w.items) {
+    const p = winItemPos(w, it);
+    ctx.fillStyle = C.dk; ctx.fillRect(p.x - 15, p.y - 11, 30, 22);
+    ctx.fillStyle = it.dir === 'out' ? '#fff4c0' : '#e0f0ff'; ctx.fillRect(p.x - 13, p.y - 9, 26, 18);
+    ctx.strokeStyle = C.lo; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x - 13, p.y - 9); ctx.lineTo(p.x, p.y + 1); ctx.lineTo(p.x + 13, p.y - 9); ctx.stroke();
+    if (it.stamped) { ctx.fillStyle = '#c00000'; ctx.fillRect(p.x + 4, p.y + 2, 8, 5); }
+  }
+}
+
 function drawMinimap() {
   const inside = scene.kind === 'inside', r = inside ? roomOf() : null;
   const MW = inside ? r.w : W, MH = inside ? r.h : H;
@@ -2195,7 +2882,8 @@ function drawMinimap() {
 function camBounds() { return scene.kind === 'inside' ? { x0: -300, y0: -300, x1: roomOf().w + 300, y1: roomOf().h + 300 } : { x0: 0, y0: 0, x1: W, y1: H }; }
 function updateCamera(dt) {
   const k = 1 - Math.exp(-6 * dt);
-  cam.x += (robot.x - cam.x) * k; cam.y += (robot.y - 40 - cam.y) * k;
+  const f = pkgRide ? ridePos() : { x: robot.x, y: robot.y - 40 };
+  cam.x += (f.x - cam.x) * k; cam.y += (f.y - cam.y) * k;
   const b = camBounds(), hw = view.cw / 2 / view.zoom, hh = view.ch / 2 / view.zoom;
   cam.x = b.x1 - b.x0 > hw * 2 ? Math.max(b.x0 + hw, Math.min(b.x1 - hw, cam.x)) : (b.x0 + b.x1) / 2;
   cam.y = b.y1 - b.y0 > hh * 2 ? Math.max(b.y0 + hh, Math.min(b.y1 - hh, cam.y)) : (b.y0 + b.y1) / 2;
@@ -2217,10 +2905,15 @@ function render(now) {
     for (const p of packets) drawPacket(p);
     drawFloats();
   }
+  drawBoostTrail();
   drawRobot(ctx, robot.x, robot.y, RS, robot.dir, robot.phase, robot.moving || !!robot.pushed, t);
   drawSwarm();
+  drawGuard();
+  drawRidePackage();
   drawRobotLabels();
   drawMinimap();
+  drawRideOverlay();
+  drawFade();
 }
 
 // =====================================================================
@@ -2394,6 +3087,9 @@ function sfxModem() {
 }
 // A wrong answer or a wrong password: three falling notes.
 function sfxWrong() { if (!audio.ctx) return; const t = audio.ctx.currentTime; [440, 392, 311].forEach((f, k) => tone(f, t + k * 0.16, k === 2 ? 0.45 : 0.14, 'square', 0.05, audio.sfx)); }
+function sfxBoost() { if (!audio.ctx) return; const t = audio.ctx.currentTime; noiseHit(t, 0.35, 'bandpass', 1200, 0.12, audio.sfx, 2); tone(300, t, 0.3, 'sawtooth', 0.03, audio.sfx, 900); }
+// Going through a door: a low slide down into the dark.
+function sfxEnter() { if (!audio.ctx) return; const t = audio.ctx.currentTime; tone(220, t, 1.4, 'triangle', 0.08, audio.sfx, 55); noiseHit(t, 1.2, 'lowpass', 500, 0.08, audio.sfx); }
 function sfxClick() { if (audio.ctx) tone(1400, audio.ctx.currentTime, 0.03, 'square', 0.03, audio.sfx); }
 function sfxHangup() { if (audio.ctx) tone(900, audio.ctx.currentTime, 0.14, 'square', 0.04, audio.sfx, 300); }
 function sfxThunk() {
@@ -2509,7 +3205,14 @@ function resize() {
   view.dpr = window.devicePixelRatio || 1;
   view.cw = Math.max(1, r.width); view.ch = Math.max(1, r.height);
   cv.width = Math.round(view.cw * view.dpr); cv.height = Math.round(view.ch * view.dpr);
-  view.zoom = Math.min(view.cw / VIEW_W, view.ch / VIEW_H);
+  view.base = Math.min(view.cw / VIEW_W, view.ch / VIEW_H);
+  view.zoom = view.base * (view.mul || 1);
+}
+// The package view zooms in a little; the zoom eases in and out.
+function updateZoom(dt) {
+  view.mul = view.mul || 1;
+  view.mul += ((pkgRide ? 1.25 : 1) - view.mul) * (1 - Math.exp(-3 * dt));
+  view.zoom = view.base * view.mul;
 }
 new ResizeObserver(() => { resize(); updateCamera(1); render(performance.now()); }).observe(cv.parentElement);
 resize();
@@ -2518,7 +3221,8 @@ const st1 = document.getElementById('st1'), st2 = document.getElementById('st2')
 function updateStatus() {
   const where = scene.kind === 'inside' ? `inside the ${roomOf().name} of Node ${scene.node}` : robot.ride ? 'riding the cable' : `on Node ${boardAt(robot.x, robot.y) || '?'}`;
   const al = ['A', 'B'].filter(alert).map(n => ` · Node ${n} ON ALERT`).join('');
-  st1.textContent = `Simulation: ${paused ? 'paused' : 'running'} · ${speed}× · connection: ${tcp === 'up' ? 'open' : 'none'} · robot: ${where}${al}`;
+  const boost = robot.boostWait > 0 ? `boost in ${Math.ceil(robot.boostWait)} s` : 'boost ready';
+  st1.textContent = `Simulation: ${paused ? 'paused' : 'running'} · ${speed}× · connection: ${tcp === 'up' ? 'open' : 'none'} · robot: ${where} · ${boost}${al}`;
   const bl = ['A', 'B'].map(n => `${n} ${defense[n].blocks}`).join(', ');
   st2.textContent = `Machines found: ${know.metInst.size}/12 · Questions: ${know.asked.size}/${TOTAL_TOPICS} · Stations seen: ${know.stations.size}/${ALL_STATIONS} · Quizzes passed: ${progress.passed.size}/${ORDER.length} · Blocks: ${bl}`;
 }
@@ -2537,8 +3241,12 @@ function frame(now) {
     for (const r of Object.values(ROOMS)) if (r.update) { r.update('A', simDt); r.update('B', simDt); }
     updateSwarm(simDt);
   }
+  updateFade(dt);
+  updateRide(dt);
+  updateGuard(dt);
   updateRobot(dt);
   reveal();
+  updateZoom(dt);
   updateCamera(dt);
   updateDialog(dt);
   updatePacketSounds(dt);

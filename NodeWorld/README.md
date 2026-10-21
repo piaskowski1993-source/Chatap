@@ -28,6 +28,7 @@ Open `index.html` in a browser. No install or server is necessary.
 | Key | Action |
 | --- | --- |
 | Arrow keys / WASD, or click | Drive |
+| Shift (while driving) | Short speed boost, then 5 s to recharge |
 | E / Enter / Space | Talk at a terminal, go through a door, ride the cable |
 | Space / Enter / click | Next line of dialogue |
 | 1, 2, 3 … | Choose a question in a dialogue, or an answer in a quiz |
@@ -48,6 +49,9 @@ not Chatap behaviour:
   the code. The facts they say are true to the code; the voices are not.
 - **Doors, quizzes and passwords.** Chatap machines have no doors. The
   passwords are game passwords, not part of Chatap.
+- **Package view and the guard.** The package-view ride is a replay of one
+  message's route through a room, not a live packet. The guard antibody that
+  throws the robot out of a factory is a game rule.
 - **Sound.** Music, modem noise and packet sounds are decoration.
 
 ## Development

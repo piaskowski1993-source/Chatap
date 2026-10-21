@@ -11,7 +11,7 @@ const els={}; global.document={documentElement:{},addEventListener:()=>{},getEle
 const listeners={}; global.addEventListener=(k,f)=>{(listeners[k]=listeners[k]||[]).push(f)}; global.ResizeObserver=class{observe(){}}; let T=0; global.performance={now:()=>T};
 let rafCb=null; global.requestAnimationFrame=cb=>{rafCb=cb}; global.window={devicePixelRatio:1, AudioContext: function(){ return anyProxy(); }}; global.location={hash:''};
 global.setInterval=(f)=>{ global.__musicTick=f; };
-eval(fs.readFileSync(__dirname+'/cw.js','utf8')+`;globalThis.__t={robot,interact,termSpot,doorRect,P,BOARD,ST_INST,factory,know,doorOpen,dlg,closeDialog,quiz,progress,wantedTrack,get scene(){return scene},get swarm(){return swarm},blocked,nearTerminal,nearDoor,defense,initAudio,get voices(){return voices}};`);
+eval(fs.readFileSync(__dirname+'/cw.js','utf8')+`;globalThis.__t={robot,interact,termSpot,doorRect,P,BOARD,ST_INST,factory,know,doorOpen,dlg,closeDialog,quiz,progress,wantedTrack,winRoom,enterRoom,exitRoom,get pkgRide(){return pkgRide},get guard(){return guard},get fade(){return fade},ROOMS,tryBoost,keys,updateRobot,get scene(){return scene},get swarm(){return swarm},blocked,nearTerminal,nearDoor,defense,initAudio,get voices(){return voices}};`);
 const tick=n=>{for(let i=0;i<n;i++){T+=1000/60; rafCb(T); if(global.__musicTick) global.__musicTick();}};
 const opts=()=>els.dlgOpts.children.map(c=>c.textContent||c.tag);
 const talkUntilOptions=()=>{ for(let i=0;i<60*40 && !t.dlg.optionsShown;i++) tick(1); };
@@ -40,7 +40,7 @@ let t;
  console.log('pass result:', takeQuiz([]), '| passed:', [...t.progress.passed], '| track:', t.wantedTrack());
  els.quizOpts.children[0].onclick(); talkUntilOptions();   // close
  console.log('after quiz, machine says:', els.dlgLine.textContent); t.closeDialog();
- t.robot.x=d.x+d.w/2; t.robot.y=d.y+d.h+30; t.interact(); console.log('enter -> scene', t.scene.kind, t.scene.node);
+ t.robot.x=d.x+d.w/2; t.robot.y=d.y+d.h+30; t.interact(); console.log('entering (fade) -> scene', t.scene.kind); tick(60*3); console.log('enter -> scene', t.scene.kind, t.scene.node);
  // every station terminal reachable
  for (const k in t.ST_INST.log.A){ const inst=t.ST_INST.log.A[k]; const s=t.termSpot(inst); t.robot.x=s.x; t.robot.y=s.y; if(t.blocked(s.x,s.y)||t.nearTerminal()!==inst) console.log('BAD station terminal',k, t.blocked(s.x,s.y), t.nearTerminal()&&t.nearTerminal().id); }
  console.log('station terminals checked');
@@ -53,9 +53,35 @@ let t;
  const nf=t.ST_INST.log.A.nodeFile, ns=t.termSpot(nf); t.robot.x=ns.x; t.robot.y=ns.y; t.interact(); talkUntilOptions();
  els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('last line')).onclick(); talkUntilOptions(); console.log('node.txt last line answer:', els.dlgLine.textContent); t.closeDialog();
  // leave and stand near a busy wire to hear packets
- t.robot.x=130; t.robot.y=1360; t.interact(); const B=t.BOARD.A; t.robot.x=B.x+1450; t.robot.y=B.y+1500;
+ // package view: first ride -> warning, second ride -> thrown out
+ const ride=()=>{ const port=t.ST_INST.log.A.port, sp=t.termSpot(port); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions();
+   els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('Ride')).onclick(); let n=0; while(t.pkgRide&&n<60*120){ tick(1); n++; } return n; };
+ console.log('port options:', (()=>{ const port=t.ST_INST.log.A.port, sp=t.termSpot(port); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions(); const o=opts(); t.closeDialog(); return o.join(' | '); })());
+ console.log('ride 1 frames:', ride(), '| guard:', t.guard&&t.guard.state); tick(60*2); console.log('guard says:', t.guard&&t.guard.say); tick(60*8); console.log('after warning: guard', t.guard&&t.guard.state, '| scene', t.scene.kind);
+ console.log('ride 2 frames:', ride()); tick(60*12); console.log('after 2nd ride: scene', t.scene.kind, '| thought:', t.robot.thought&&t.robot.thought.text, '| blocked where we stand?', t.blocked(t.robot.x,t.robot.y));
+ t.enterRoom(t.P['A.log']);
+ t.robot.x=130; t.robot.y=1360; t.interact(); tick(60*2); const B=t.BOARD.A; t.robot.x=B.x+1450; t.robot.y=B.y+1500;
  let maxVoices=0; for(let i=0;i<60*60;i++){ tick(1); maxVoices=Math.max(maxVoices,t.voices.size); }
  console.log('scene', t.scene.kind, '| max packet voices at once:', maxVoices, '| audio calls:', audioCalls>1000?'>1000':audioCalls);
  tick(60*120); console.log('2 more min OK');
  tick(60*90); console.log('victory over, track:', t.wantedTrack());
+ // ---- the Window room ----
+ console.log('window door open at start A/B:', t.doorOpen['A.window'], t.doorOpen['B.window'], '| password board earned:', [...t.progress.earned]);
+ console.log('window glass lines A/B:', t.winRoom.A.lines.length, t.winRoom.B.lines.length, '| tabs A:', JSON.stringify(t.winRoom.A.tabs), '| status A:', t.winRoom.A.status);
+ t.robot.x=t.BOARD.A.x+600; t.robot.y=t.BOARD.A.y+880;
+ t.enterRoom(t.P['A.window']); console.log('enter window -> scene', t.scene.kind, t.scene.room, '| spawn blocked?', t.blocked(t.robot.x,t.robot.y));
+ for (const k in t.ST_INST.window.A){ const inst=t.ST_INST.window.A[k]; const sp=t.termSpot(inst); t.robot.x=sp.x; t.robot.y=sp.y; if(t.blocked(sp.x,sp.y)||t.nearTerminal()!==inst) console.log('BAD window terminal',k, t.blocked(sp.x,sp.y), t.nearTerminal()&&t.nearTerminal().id); }
+ console.log('window terminals checked');
+ { const inst=t.ST_INST.window.A.painter, sp=t.termSpot(inst); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions(); console.log('painter:', els.dlgLine.textContent, '|', opts().join(' | ')); t.closeDialog(); }
+ t.exitRoom();
+ // quiz at the Window terminal
+ { const sp=t.termSpot(t.P['A.window']); t.robot.x=sp.x; t.robot.y=sp.y; t.interact(); talkUntilOptions();
+   els.dlgOpts.children.find(c=>c.textContent&&c.textContent.includes('Take the quiz')).onclick(); for(let i=0;i<60*20&&t.quiz.phase!=='ask';i++) tick(1);
+   console.log('window quiz:', takeQuiz([]), '| earned:', [...t.progress.earned]); els.quizOpts.children[0].onclick(); talkUntilOptions(); console.log('window says:', els.dlgLine.textContent); t.closeDialog(); }
+ // boost: speed while on, then cooldown
+ t.robot.x=t.BOARD.A.x+600; t.robot.y=t.BOARD.A.y+880; t.keys.add('ArrowRight'); let y0=t.robot.x; tick(30); const normal=t.robot.x-y0;
+ t.tryBoost(); y0=t.robot.x; tick(20); const boosted=t.robot.x-y0; t.tryBoost(); console.log('normal 30 frames:', normal.toFixed(0), '| boosted 20 frames:', boosted.toFixed(0), '| cooldown left:', t.robot.boostWait.toFixed(1), '| status:', els.st1.textContent.split(' · ').pop());
+ t.keys.clear(); tick(60*5); console.log('after 5 s:', els.st1.textContent.split(' · ').pop());
+ // run more loops inside the Window room to exercise its drawing
+ t.enterRoom(t.P['B.window']); tick(60*60); console.log('B window lines:', t.winRoom.B.lines.length, '| items now:', t.winRoom.B.items.length, '| 1 min inside OK');
 })().catch(e=>{console.error('ERR',e);process.exit(1)});
