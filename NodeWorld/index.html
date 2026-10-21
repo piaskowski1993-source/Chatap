@@ -1,0 +1,2192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NodeWorld</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --face: #c0c0c0; --light: #dfdfdf; --hi: #ffffff; --lo: #808080; --dk: #000000;
+    --navy: #000080; --title2: #1084d0; --desk: #008080; --tip: #ffffe1;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--desk); color: #000; overflow: hidden;
+    font-family: "Pixelify Sans", monospace; font-size: 15px;
+  }
+  .win {
+    background: var(--face);
+    border: 2px solid; border-color: var(--hi) var(--dk) var(--dk) var(--hi);
+    box-shadow: inset -1px -1px var(--lo), inset 1px 1px var(--light);
+  }
+  .titlebar {
+    background: linear-gradient(90deg, var(--navy), var(--title2)); color: #fff;
+    font-weight: 600; padding: 3px 4px 3px 8px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .titlebar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button.w95 {
+    background: var(--face); color: #000; font: inherit; font-size: 14px;
+    border: 2px solid; border-color: var(--hi) var(--dk) var(--dk) var(--hi);
+    box-shadow: inset -1px -1px var(--lo), inset 1px 1px var(--light);
+    padding: 3px 12px; cursor: pointer;
+  }
+  button.w95:active, button.w95.on {
+    border-color: var(--dk) var(--hi) var(--hi) var(--dk);
+    box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--light);
+  }
+  button.w95:disabled { color: var(--lo); text-shadow: 1px 1px var(--hi); cursor: default; }
+  button.w95:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+  button.tbtn { padding: 0 6px; font-size: 13px; line-height: 16px; min-width: 22px; }
+  .tbtns { display: flex; gap: 2px; flex: none; }
+  :fullscreen #app, #app.full { inset: 0; }
+  .sunken {
+    background: #fff;
+    border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+    box-shadow: inset 1px 1px var(--dk);
+  }
+  #app { position: fixed; inset: 8px; display: flex; flex-direction: column; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px;
+    border-bottom: 1px solid var(--lo); box-shadow: 0 1px var(--hi);
+  }
+  .toolbar label { display: flex; align-items: center; gap: 6px; margin-left: 6px; }
+  .toolbar select { font: inherit; font-size: 14px; background: #fff; border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+  .hint { margin-left: auto; color: #202020; font-size: 13px; }
+  .stage { position: relative; flex: 1; min-height: 0; margin: 4px; }
+  .stage #cv { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .statusbar { display: flex; gap: 4px; padding: 3px 4px; font-size: 13px; }
+  .statusbar span {
+    flex: 1; padding: 1px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  }
+
+  /* dialogue box (JRPG style: robot left, machine right) */
+  .dlg {
+    position: absolute; left: 8px; right: 8px; bottom: 8px; max-height: 62%;
+    display: flex; flex-direction: column;
+  }
+  .dlg[hidden] { display: none; }
+  .drow { display: flex; gap: 12px; padding: 10px; min-height: 0; align-items: flex-start; }
+  .avatar { flex: none; width: 136px; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: filter 0.2s; }
+  .avatar canvas {
+    width: 128px; height: 128px; image-rendering: pixelated; background: #000;
+    border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  }
+  .avatar.dim { filter: brightness(0.5) grayscale(0.4); }
+  .plate {
+    font-weight: 600; font-size: 13px; background: var(--navy); color: #fff; padding: 1px 8px;
+    max-width: 136px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .dmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .speaker { font-weight: 600; color: var(--navy); min-height: 1.2em; }
+  .dtext { position: relative; min-height: 84px; padding: 10px 28px 10px 12px; font-size: 18px; line-height: 1.4; cursor: pointer; }
+  .more { position: absolute; right: 10px; bottom: 6px; color: var(--navy); animation: blink 0.8s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .opts { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 30vh; }
+  .opts button { text-align: left; }
+  .opts .asked { color: #505050; }
+  .opts .action { font-weight: 600; }
+  .badge { background: var(--navy); color: #fff; font-size: 11px; padding: 0 4px; margin-left: 6px; }
+  .locked { color: #505050; font-size: 13px; padding: 2px 2px; }
+  @media (max-width: 700px) {
+    .hint { display: none; }
+    .avatar { width: 68px; }
+    .avatar canvas { width: 64px; height: 64px; }
+    .plate { font-size: 11px; max-width: 68px; }
+    .dtext { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<div id="app" class="win">
+  <div class="titlebar" id="appTitle"><span>NodeWorld</span><span class="tbtns"><button class="w95 tbtn" id="btnMax" title="Maximize (full screen)" aria-label="Maximize">□</button><button class="w95 tbtn" tabindex="-1" aria-hidden="true">×</button></span></div>
+  <div class="toolbar">
+    <button class="w95" id="btnPause">Pause</button>
+    <button class="w95" id="btnStep" disabled>Step</button>
+    <label>Speed
+      <select id="speed">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+    </label>
+    <button class="w95" id="btnLayout">Reset layout</button>
+    <button class="w95" id="btnSound">Sound: on</button>
+    <span class="hint">Arrows / WASD: drive · E: terminal / door / cable · Space: next line · click: drive there · drag: move a machine</span>
+  </div>
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div id="dlg" class="win dlg" hidden>
+      <div class="titlebar"><span id="dlgTitle"></span><button class="w95 tbtn" id="dlgClose" aria-label="Close">×</button></div>
+      <div class="drow">
+        <div class="avatar" id="avRbox"><canvas id="avR" width="64" height="64"></canvas><div class="plate">ROBOT</div></div>
+        <div class="dmain">
+          <div class="speaker" id="dlgSpeaker"></div>
+          <div class="dtext sunken" id="dlgText" title="Click or press Space to go on"><span id="dlgLine"></span><span class="more" id="dlgMore">▼</span></div>
+          <div class="opts" id="dlgOpts"></div>
+        </div>
+        <div class="avatar" id="avPbox"><canvas id="avP" width="64" height="64"></canvas><div class="plate" id="dlgName"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar"><span id="st1"></span><span id="st2"></span></div>
+</div>
+
+<script>
+// =====================================================================
+// DIALOGUE DATA — edit freely.
+// greet: plays by itself the first time the robot connects to this kind
+//        of machine. Everything else is a question the player chooses.
+// twin:  plays on the first visit to the same machine on the other board.
+// topics: questions. `after` = a question of this machine that must be
+//        asked first. `requires` = machines the robot must have met, or
+//        events it must have seen ('sawHandshake', 'sawFin').
+// Lines: ['R', text] = robot, ['P', text] = the machine.
+// =====================================================================
+const DIALOGUE = {
+  window: {
+    greet: [
+      ['R', 'Hello. You are very bright.'],
+      ['P', 'I am the Window. I am the only part the human can see.'],
+    ],
+    twin: [['P', 'You met my twin on the other board. We are the same program. Only the human in front of us is different.']],
+    topics: [
+      { id: 'human', ask: 'What is a human?', lines: [
+        ['P', 'Someone who types. I show them what arrives, and I take what they type.'] ] },
+      { id: 'send', ask: 'Do you do the sending too?', after: 'human', lines: [
+        ['P', 'No. I give it to the handler. I only look and listen.'],
+        ['R', '…That sounds lonely. And important.'] ] },
+      { id: 'thread', ask: 'Why can only you paint on yourself?', after: 'send', lines: [
+        ['P', 'Only one thread may change me: the UI thread. If two hands paint at once, the picture tears.'],
+        ['P', 'When news comes from the network, the handler does not touch me. It posts the news to my thread, and I paint it when I am ready.'] ] },
+      { id: 'address', ask: 'What is the number at the top?', lines: [
+        ['P', 'My address. An IP and a port.'],
+        ['P', 'The human tells it to a friend some other way. With a voice, or a note.'],
+        ['R', 'You cannot tell them yourself?'],
+        ['P', 'No. Nobody here knows where anyone is until they are told.'] ] },
+      { id: 'tabs', ask: 'Why do you have tabs?', lines: [
+        ['P', 'One tab for each conversation. Each tab holds on to its own handler.'],
+        ['P', 'If one conversation breaks, the other tabs do not notice.'] ] },
+      { id: 'counter', ask: 'What is the number under the text box?', requires: ['codec'], lines: [
+        ['P', 'It counts bytes, not letters.'],
+        ['R', 'Are they not the same?'],
+        ['P', "Not always. An 'a' costs one byte. An 'ø' costs six, after it is dressed in JSON."],
+        ['P', 'If the message is too heavy, my Send button goes grey. Nothing is saved, and nothing is sent.'] ] },
+    ],
+  },
+  node: {
+    greet: [
+      ['R', 'Hello. What are you doing?'],
+      ['P', 'Listening.'],
+    ],
+    twin: [['P', 'My twin listens on the other board, on a different port. Same code. Different number.']],
+    topics: [
+      { id: 'for', ask: 'Listening for what?', lines: [
+        ['P', 'For a knock on my port.'] ] },
+      { id: 'port', ask: 'Which port?', after: 'for', lines: [
+        ['P', 'The one the operating system gave me. I asked for port zero, and it gave me a free one.'],
+        ['R', 'Port zero is a strange thing to ask for.'],
+        ['P', "It means: 'any port that is free'. It is a polite way to ask."] ] },
+      { id: 'accept', ask: 'What happens when someone knocks?', after: 'for', lines: [
+        ['P', 'I accept them. Accepting makes a new socket, only for that conversation.'],
+        ['P', 'I keep listening on my own socket. The new one goes to a new handler.'] ] },
+      { id: 'connect', ask: 'Can you knock too?', after: 'for', lines: [
+        ['P', 'Yes. When the human types an address, I open a connection to it.'],
+        ['P', 'Every node listens, and every node can connect. Nobody here is the server.'] ] },
+      { id: 'handshake', ask: 'What were the three small packets?', requires: ['sawHandshake'], lines: [
+        ['P', 'SYN, SYN-ACK, ACK. The handshake.'],
+        ['P', 'The operating system does it for us. I only hear about the knock when it is finished.'] ] },
+      { id: 'newest', ask: 'What if the same friend knocks twice?', requires: ['handler'], lines: [
+        ['P', 'The newest connection wins.'],
+        ['R', 'Why the newest?'],
+        ['P', 'The old one is often already dead. And often only one side knows it.'] ] },
+    ],
+  },
+  handler: {
+    greet: [
+      ['R', 'Hello. Are you the boss?'],
+      ['P', 'No. I take care of one conversation.'],
+    ],
+    twin: [['P', 'You talked to my twin. We are mirrors: what I send, it receives.']],
+    topics: [
+      { id: 'one', ask: 'Only one?', lines: [
+        ['P', 'Only one. Each conversation has its own handler. If I break, the others do not.'] ] },
+      { id: 'wait', ask: 'What do you wait for?', lines: [
+        ['P', 'First, a hello. I do not trust a stranger who does not say hello.'],
+        ['R', 'And after the hello?'],
+        ['P', 'After that, I listen to my socket. Until it goes quiet.'] ] },
+      { id: 'states', ask: "What does 'Ready' mean?", after: 'wait', lines: [
+        ['P', 'I have three moods: WaitingForHello, Ready and Closed.'],
+        ['P', 'Before Ready, I keep what the human sends in a queue. I do not throw it away.'],
+        ['P', 'If no hello comes in ten seconds, I close.'] ] },
+      { id: 'hello', ask: 'What is in a hello?', after: 'wait', lines: [
+        ['P', 'An ID, and a version.'],
+        ['R', 'Why the version?'],
+        ['P', 'If our versions are different, we do not talk. We say so clearly, and we close.'] ] },
+      { id: 'log', ask: 'Why do you send little papers to the LogWriter?', lines: [
+        ['P', 'So that somebody remembers what happened, even if nobody is looking now.'],
+        ['P', 'When the hello arrives, and when we close. Not every message. The store keeps those.'] ] },
+      { id: 'save', ask: 'Why do you visit the store before you send?', requires: ['store'], lines: [
+        ['P', 'I save the message first.'],
+        ['P', "If the sending goes wrong, the human still has it. Marked 'not sent'."] ] },
+      { id: 'quiet', ask: 'How do you know when the other side is gone?', requires: ['sawFin'], lines: [
+        ['P', 'If they leave politely, their system sends FIN. My read gives me zero bytes. That is the end.'],
+        ['P', 'If they vanish without a word, the operating system knocks on the wire for me.'],
+        ['P', 'After 60 quiet seconds. Then every 10 seconds. After 3 knocks with no answer, my read fails, and I end.'] ] },
+    ],
+  },
+  codec: {
+    greet: [
+      ['R', 'Hello. What are you doing?'],
+      ['P', 'I am counting.'],
+    ],
+    twin: [['P', 'My twin counts on the other board. We must count the same way, or we would not understand each other.']],
+    topics: [
+      { id: 'what', ask: 'Counting what?', lines: [
+        ['P', 'Bytes. Before every message, I say how many will come.'] ] },
+      { id: 'why', ask: 'Why do you count them?', after: 'what', lines: [
+        ['P', 'Because the wire forgets where one message stops and the next one begins.'],
+        ['R', '…That is a strange wire.'] ] },
+      { id: 'prefix', ask: 'How do you say how many?', after: 'what', lines: [
+        ['P', 'With four bytes, before the message. Big end first.'],
+        ['P', 'Then I read exactly that many bytes. The byte after them is the start of the next count.'] ] },
+      { id: 'pause', ask: 'Can you not wait for a pause instead?', after: 'why', lines: [
+        ['P', 'There are no pauses in the wire. It keeps the order of the bytes, but not their timing.'],
+        ['P', 'Two messages can arrive glued together. One message can arrive in pieces. Only counting is safe.'] ] },
+      { id: 'json', ask: 'What is inside the message?', after: 'what', lines: [
+        ['P', "JSON. A type comes first: 'hello' or 'chat'. Then the rest."],
+        ['P', 'The type tells me which kind of message to build.'] ] },
+      { id: 'limit', ask: 'Is there a message that is too big for you?', after: 'prefix', lines: [
+        ['P', 'Yes. Anything over 64 kilobytes.'],
+        ['R', 'What do you do?'],
+        ['P', "I check the count before I make room. If someone says 'three gigabytes are coming', I do not believe them."],
+        ['P', 'I complain, and the handler closes the connection.'] ] },
+      { id: 'own', ask: 'Do you own the wire?', requires: ['handler'], lines: [
+        ['P', 'No. I own nothing. Give me any stream of bytes, and I will count it.'],
+        ['P', 'That is why I am easy to test.'] ] },
+    ],
+  },
+  store: {
+    greet: [
+      ['R', 'Hello. What are you holding?'],
+      ['P', 'Every message. One line for each.'],
+    ],
+    twin: [['P', 'My twin keeps the same conversation in its own file, on the other computer. Two copies, written by two hands.']],
+    topics: [
+      { id: 'line', ask: 'Why one line for each?', lines: [
+        ['P', 'So I can add a new one at the end without reading the old ones.'] ] },
+      { id: 'forget', ask: 'Do you ever forget?', lines: [
+        ['P', 'Only if the disk forgets.'] ] },
+      { id: 'file', ask: 'Where do you keep them?', after: 'line', lines: [
+        ['P', "One file for each friend. Its name is the friend's ID, and it ends in .jsonl."],
+        ['P', 'JSON Lines. Each line is a full JSON message on its own.'] ] },
+      { id: 'id', ask: 'Why the ID, and not the address?', after: 'file', lines: [
+        ['P', 'Addresses change. A friend on another port is still the same friend.'],
+        ['P', 'The ID stays.'] ] },
+      { id: 'when', ask: 'When do you save?', lines: [
+        ['P', 'When the human presses Send, before the message leaves.'],
+        ['P', 'And when a message arrives, right after.'] ] },
+      { id: 'notsent', ask: 'What if a message never arrives?', requires: ['handler'], lines: [
+        ['P', "Then I add a mark: 'not sent'."],
+        ['P', 'I do not send it again on my own. The wire already tried its best.'] ] },
+    ],
+  },
+  log: {
+    greet: [
+      ['R', 'Hello. What are you writing?'],
+      ['P', 'What happened.'],
+    ],
+    twin: [['P', 'My twin writes the story of the other board. Two diaries of the same talk.']],
+    topics: [
+      { id: 'whom', ask: 'For whom?', lines: [
+        ['P', 'For nobody, yet. Maybe for someone who comes later and asks why.'],
+        ['R', 'Like me?'],
+        ['P', 'Like you.'] ] },
+      { id: 'queue', ask: 'Why do the papers wait in a line?', lines: [
+        ['P', 'Many parts want to write at the same time. Only I write to the files.'],
+        ['P', 'They drop their lines in my queue and go back to work. I write them one at a time, so no two lines get mixed.'] ] },
+      { id: 'files', ask: 'Which files do you write?', after: 'whom', lines: [
+        ['P', 'One folder for each day, by UTC time.'],
+        ['P', 'In it: one file for the node, and one for each conversation.'] ] },
+      { id: 'utc', ask: 'Why UTC?', after: 'files', lines: [
+        ['P', 'Clocks in different places disagree. On some nights, clocks even go back one hour.'],
+        ['P', 'UTC never does.'] ] },
+      { id: 'inside', ask: 'What is inside you?', lines: [
+        ['P', 'Machines. Come in and look. My door is in my bottom wall. Ask me, and I will open it.'] ] },
+      { id: 'fail', ask: 'What if you cannot write?', lines: [
+        ['P', 'Then I say so once, and the node goes on without me.'],
+        ['P', 'A chat without a diary is still a chat.'] ] },
+    ],
+  },
+};
+
+// Live answers to "What are you doing right now?"
+const NOW = {
+  window: n => N[n].typing ? ['The human is typing. I am holding the letters until they press Send.']
+    : N[n].tab ? [`I show the tab for ${N[n].tab}. It has ${N[n].chat.length} lines in it.`]
+    : ['I show our address, and I wait for the human.'],
+  node: n => !N[n].listening ? ['I am waking up.']
+    : handshake ? ['Someone is knocking! The operating system is answering for me.']
+    : [`I am listening on port ${INFO[n].port}. Nobody new has knocked.`],
+  handler: n => !N[n].handlerAlive ? ['I do not exist right now. There is no conversation, so there is no me.', 'You are talking to the idea of me.']
+    : N[n].handlerState === 'Ready' ? ['I am Ready. I am waiting for bytes from my socket.']
+    : [`I am ${N[n].handlerState}.`],
+  codec: n => N[n].lastFrame ? [`The last message I counted was ${N[n].lastFrame} bytes. I said so in four bytes: ${hex4(N[n].lastFrame)}.`]
+    : ['Nothing yet. I am a rule, waiting for bytes.'],
+  store: n => [`I hold ${N[n].storeLines} lines in my file.`],
+  log: n => [`I have written ${N[n].logLines} lines today.`],
+};
+// Game-only line (not real Chatap behaviour): said while a board is on alert.
+const ALERT_LINE = 'Something keeps stopping our signals. The defenders are awake.';
+
+// Dialogue of the machines inside the LogWriter (same rules as DIALOGUE).
+// `lines` can be a function of the node, for answers that read live state.
+const ST_DIALOGUE = {
+  slots: {
+    greet: [['R', 'Hello. What are you?'], ['P', 'Two mouths in the wall. Papers fall into me.']],
+    twin: [['P', 'The other LogWriter has slots like mine. Its papers come from the other node.']],
+    topics: [
+      { id: 'who', ask: 'Who drops the papers?', lines: [
+        ['P', 'The Node, through my top mouth. The handlers, through the bottom one.'],
+        ['P', 'They drop a paper and run back to work. Nobody outside waits for the writing.'] ] },
+      { id: 'why', ask: 'Why do they not wait?', after: 'who', lines: [
+        ['P', 'Writing to a disk is slow. A conversation must not stop because a diary is slow.'] ] },
+      { id: 'full', ask: 'Are you ever too full to take a paper?', lines: [
+        ['P', 'No. I always say yes. The belt behind me has no end.'],
+        ['P', 'Only after the gate closes, I say no.'] ] },
+    ],
+  },
+  gate: {
+    greet: [['R', 'Hello. Are you a door?'], ['P', 'I am a gate. I am open now.']],
+    twin: [['P', 'Every LogWriter has a gate like me.']],
+    topics: [
+      { id: 'when', ask: 'When do you close?', lines: [
+        ['P', 'At closing time, when the program stops.'] ] },
+      { id: 'after', ask: 'What happens to the papers inside?', after: 'when', lines: [
+        ['P', 'Nothing is lost. Every paper already inside is still written. Then the lights go out.'],
+        ['P', 'New papers bounce off me.'] ] },
+    ],
+  },
+  clock: {
+    greet: [['R', 'Hello. You go ka-chunk.'], ['P', 'I stamp the time on every paper.']],
+    twin: [['P', 'My twin stamps papers in the other node. We both use the same kind of time.']],
+    topics: [
+      { id: 'when', ask: 'When do you stamp it?', lines: [
+        ['P', 'The moment it falls in. The moment it happened, not the moment it gets written.'] ] },
+      { id: 'why', ask: 'Why not stamp it later?', after: 'when', lines: [
+        ['P', 'The belt can be slow. If I stamped later, the time would lie.'] ] },
+      { id: 'utc', ask: 'What kind of time?', lines: [
+        ['P', 'UTC. Every clock in the world agrees on it. No summer time, no jumps.'] ] },
+    ],
+  },
+  belt: {
+    greet: [['R', 'Hello. You are moving.'], ['P', 'I carry papers that wait.']],
+    twin: [['P', 'The other belt carries the other node\'s papers.']],
+    topics: [
+      { id: 'order', ask: 'In which order?', lines: [
+        ['P', 'First in, first out. Nobody jumps the line.'] ] },
+      { id: 'end', ask: 'Do you ever get full?', lines: [
+        ['P', 'No. I have no end. I only get longer.'],
+        ['R', 'Is that good?'],
+        ['P', 'Usually. Papers are small, and the arm is fast.'] ] },
+    ],
+  },
+  arm: {
+    greet: [['R', 'Hello. You have only one hand.'], ['P', 'One is enough. I am the only one who writes.']],
+    twin: [['P', 'My twin is alone too, in the other LogWriter. One arm each.']],
+    topics: [
+      { id: 'one', ask: 'Why only one?', lines: [
+        ['P', 'If two hands wrote to the same file at once, the lines would get mixed into each other.'],
+        ['P', 'With one hand, every line is whole.'] ] },
+      { id: 'which', ask: 'Which paper do you take?', after: 'one', lines: [
+        ['P', 'The oldest one. Always the next in line.'] ] },
+      { id: 'rest', ask: 'What do you do when the belt is empty?', lines: [
+        ['P', 'I rest. I do not stand there holding my breath.'],
+        ['P', 'When a paper comes, I wake up.'] ] },
+    ],
+  },
+  sorter: {
+    greet: [['R', 'Hello. What are you looking at?'], ['P', "Names. On every paper, I look for a friend's ID."]],
+    twin: [['P', 'My twin sorts the papers of the other node.']],
+    topics: [
+      { id: 'id', ask: 'What if there is an ID?', lines: [
+        ['P', "Then the paper goes to that friend's file. The file's name is the friend's ID."] ] },
+      { id: 'none', ask: 'And if there is no ID?', lines: [
+        ['P', 'Then the paper is about the node itself. It goes to node.txt.'] ] },
+      { id: 'hello', ask: 'When does a paper get an ID?', after: 'id', lines: [
+        ['P', "After the friend's hello. Before the hello, nobody knows who they are."],
+        ['P', 'So those papers go to node.txt.'] ] },
+    ],
+  },
+  shelf: {
+    greet: [['R', 'Hello. You are a big frame.'], ['P', 'I am the shelf for today.']],
+    twin: [['P', 'The other LogWriter has a shelf for today too.']],
+    topics: [
+      { id: 'day', ask: 'Which day?', lines: () => [['P', `${simDate().toISOString().slice(0, 10)}. A UTC day.`]] },
+      { id: 'new', ask: 'What happens at midnight?', lines: [
+        ['P', 'A new shelf. If the shelf for today is not there yet, the machine builds it first.'] ] },
+    ],
+  },
+  nodeFile: {
+    greet: [['R', 'Hello. You are a stack of paper.'], ['P', 'I am node.txt. I remember what the node did.']],
+    twin: [['P', 'There is a node.txt in the other node too. It remembers other things.']],
+    topics: [
+      { id: 'end', ask: 'Where do new lines go?', lines: [
+        ['P', 'At the end. Never in the middle. The old lines never change.'] ] },
+      { id: 'line', ask: 'What does one line look like?', lines: [
+        ['P', 'The time, two spaces, then the words.'] ] },
+      { id: 'last', ask: 'What does your last line say?', lines: n => {
+        const l = lastOf(factory[n].nodeLines);
+        return l ? [['P', 'It says:'], ['P', l]] : [['P', 'Nothing yet. I am empty.']];
+      } },
+    ],
+  },
+  peerFile: {
+    greet: [['R', 'Hello. Whose stack are you?'], ['P', "I belong to one conversation. My name is the friend's ID."]],
+    twin: [['P', 'The other node keeps a file for this conversation too, named after the other friend.']],
+    topics: [
+      { id: 'what', ask: 'What do you remember?', lines: [
+        ['P', 'When the friend said hello. When the talk ended.'],
+        ['P', 'Not the messages themselves. The store keeps those.'] ] },
+      { id: 'last', ask: 'What does your last line say?', lines: n => {
+        const l = lastOf(factory[n].peerLines);
+        return l ? [['P', 'It says:'], ['P', l]] : [['P', 'Nothing yet. The friend has not said hello.']];
+      } },
+    ],
+  },
+  lamp: {
+    greet: [['R', 'Hello. Your lamp is dark.'], ['P', 'Good. Dark means all is well.']],
+    twin: [['P', 'The other lamp is dark too, I hope.']],
+    topics: [
+      { id: 'when', ask: 'When does it light up?', lines: [
+        ['P', 'When writing fails. A full disk, maybe.'],
+        ['P', 'Then I light up one time, and I tell the program.'] ] },
+      { id: 'then', ask: 'And then?', after: 'when', lines: [
+        ['P', 'The chat goes on. A log must never stop a conversation.'],
+        ['P', 'Papers still leave the belt, but into my shredder. So the line never grows forever.'] ] },
+    ],
+  },
+};
+// Live answers of the stations to "What are you doing right now?"
+const ST_NOW = {
+  slots: n => [`Papers that fell in so far: ${factory[n].nodeLines.length + factory[n].peerLines.length + factory[n].items.length}.`],
+  gate: () => ['I am open. The program is running.'],
+  clock: () => [`It is ${utcStamp().slice(11, 19)} UTC.`],
+  belt: n => { const k = factory[n].items.filter(i => i.state === 'in').length; return [k ? `${k} paper${k > 1 ? 's are' : ' is'} waiting on me.` : 'Nothing is waiting. I roll anyway.']; },
+  arm: n => [factory[n].arm ? 'I am carrying a paper. Do not distract me.' : 'Resting. The belt is empty.'],
+  sorter: n => [!factory[n].sorter ? 'Waiting for the arm.' : factory[n].sorter.item.peer ? "This one has an ID. To the friend's file." : 'No ID on this one. To node.txt.'],
+  shelf: () => ["Holding today's files: node.txt, and one file for each friend."],
+  nodeFile: n => [`I have ${factory[n].nodeLines.length} lines.`],
+  peerFile: n => [`I have ${factory[n].peerLines.length} lines.`],
+  lamp: () => ['Dark. All is well.'],
+};
+
+// The example conversation that plays in a loop.
+const CONVO = [
+  ['A', 'hi'],
+  ['B', 'hey! is that you, A?'],
+  ['A', 'yes. just testing the new chat'],
+  ['B', 'do the bytes arrive in one piece?'],
+  ['A', 'counted and framed. all good'],
+  ['B', 'nice. talk later'],
+];
+
+// =====================================================================
+// WORLD — two identical boards with empty space between them.
+// =====================================================================
+const BW = 3200, BH = 2400, TITLE = 72;
+const BOARD = { A: { x: 200, y: 200 }, B: { x: 3900, y: 200 } };
+const W = 7300, H = 3650;
+const VIEW_W = 520, VIEW_H = 300;   // how much world fits on screen (smaller = more zoom)
+const ROBOT_SPEED = 280;            // world px per second
+const SPEED = 1300;  // packet speed, world px per sim second
+const STOP = 700;    // ms a packet waits at a stop with a note
+const INFO = {
+  A: { ip: '192.168.1.10', port: 51234, id: '3f2a9c1e-7b4d-4e8a-9c21-5d6e7f8a9b0c', outPort: 53712 },
+  B: { ip: '192.168.1.23', port: 40117, id: 'b81e04d2-1c3a-4f6b-8e2d-9a0b1c2d3e4f' },
+};
+// Positions inside a board (both boards use the same layout).
+// term = where the machine's terminal stands: side + position along that side.
+const TYPES = {
+  window:  { name: 'Window',            x: 1140, y: 140,  w: 920, h: 600, term: { side: 'right',  at: 0.75 } },
+  node:    { name: 'Node',              x: 160,  y: 1000, w: 660, h: 340, term: { side: 'left',   at: 0.5 } },
+  handler: { name: 'ConnectionHandler', x: 1270, y: 1000, w: 660, h: 340, term: { side: 'bottom', at: 0.25 } },
+  store:   { name: 'ConversationStore', x: 2380, y: 1000, w: 680, h: 340, term: { side: 'top',    at: 0.7 } },
+  log:     { name: 'LogWriter',         x: 160,  y: 1680, w: 660, h: 320, term: { side: 'right',  at: 0.4 } },
+  codec:   { name: 'Codec',             x: 1300, y: 1680, w: 600, h: 320, term: { side: 'right',  at: 0.6 } },
+};
+const WIRES = [['window', 'handler'], ['node', 'handler'], ['handler', 'codec'], ['handler', 'store'], ['handler', 'log'], ['node', 'log']];
+const TW = 56, TH = 70;   // terminal size
+
+const parts = [];
+const P = {};
+for (const n of ['A', 'B']) for (const type in TYPES) {
+  const t = TYPES[type];
+  const p = { id: `${n}.${type}`, node: n, type, name: t.name, w: t.w, h: t.h, term: t.term, x: 0, y: 0, flash: 0 };
+  parts.push(p); P[p.id] = p;
+}
+function resetLayout() {
+  for (const p of parts) { const t = TYPES[p.type]; p.x = BOARD[p.node].x + t.x; p.y = BOARD[p.node].y + t.y; }
+}
+resetLayout();
+
+function termRect(p) {
+  const { side, at } = p.term;
+  if (side === 'right')  return { x: p.x + p.w + 6, y: p.y + at * p.h - TH / 2, w: TW, h: TH };
+  if (side === 'left')   return { x: p.x - TW - 6, y: p.y + at * p.h - TH / 2, w: TW, h: TH };
+  if (side === 'top')    return { x: p.x + at * p.w - TW / 2, y: p.y - TH - 6, w: TW, h: TH };
+  return { x: p.x + at * p.w - TW / 2, y: p.y + p.h + 6, w: TW, h: TH };
+}
+// Where the robot parks to use a terminal (outside it, away from the machine).
+function termSpot(p) {
+  const t = termRect(p), side = p.term.side;
+  if (side === 'right')  return { x: t.x + t.w + 36, y: t.y + t.h - 8 };
+  if (side === 'left')   return { x: t.x - 36, y: t.y + t.h - 8 };
+  if (side === 'top')    return { x: t.x + t.w / 2 + 50, y: t.y + t.h - 8 };
+  return { x: t.x + t.w / 2, y: t.y + t.h + 36 };
+}
+// The LogWriter has a door in its bottom wall.
+function doorRect(n) { const p = P[`${n}.log`]; return { x: p.x + 0.75 * p.w - 40, y: p.y + p.h - 92, w: 80, h: 92 }; }
+
+// Walkable floor of a board, and the dock where the TCP cable plugs in.
+function floor(n) { const b = BOARD[n]; return { x: b.x + 14, y: b.y + TITLE + 8, w: BW - 28, h: BH - TITLE - 16 }; }
+function dock(n) { return { x: BOARD[n].x + BW / 2, y: BOARD[n].y + BH }; }
+function boardAt(x, y) {
+  if (scene.kind !== 'world') return null;
+  for (const n of ['A', 'B']) { const f = floor(n); if (x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h) return n; }
+  return null;
+}
+
+// Geometry helpers for the cable (a sagging curve between the docks).
+function center(p) { return { x: p.x + p.w / 2, y: p.y + p.h / 2 }; }
+function bridgePts(from) {
+  const a = dock(from), b = dock(other(from)), pts = [];
+  for (let i = 0; i <= 48; i++) {
+    const t = i / 48, u = 1 - t;
+    pts.push({
+      x: u * u * u * a.x + 3 * u * u * t * a.x + 3 * u * t * t * b.x + t * t * t * b.x,
+      y: u * u * u * a.y + 3 * u * u * t * (a.y + 900) + 3 * u * t * t * (b.y + 900) + t * t * t * b.y,
+    });
+  }
+  return pts;
+}
+function cablePts(from) { return [center(P[`${from}.codec`]), ...bridgePts(from), center(P[`${other(from)}.codec`])]; }
+function polyLen(pts) { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); return s; }
+function pointAt(pts, d) {
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], l = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d <= l) { const t = l ? d / l : 0; return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
+    d -= l;
+  }
+  return { ...pts[pts.length - 1] };
+}
+function segPts(idA, idB) {
+  const a = P[idA], b = P[idB];
+  if (a.type === 'codec' && b.type === 'codec' && a.node !== b.node) return cablePts(a.node);
+  return [center(a), center(b)];
+}
+
+// Which space the robot is in: the world, or inside one node's LogWriter.
+let scene = { kind: 'world' };
+
+// Simulation state
+let N, handshake, tcp, packets, floats, simTime = 0, loops = 0;
+const events = new Set();
+function freshNode() {
+  return { listening: false, handlerAlive: false, handlerState: '', tab: null, chat: [], typing: '', storeLines: 0, logLines: 0, lastFrame: null };
+}
+N = { A: freshNode(), B: freshNode() };
+handshake = false; tcp = 'none'; packets = []; floats = [];
+function resetRun() {
+  for (const n of ['A', 'B']) {
+    const keep = { storeLines: N[n].storeLines, logLines: N[n].logLines, listening: N[n].listening };
+    N[n] = Object.assign(freshNode(), keep);
+  }
+  handshake = false; tcp = 'none'; packets = []; floats = [];
+}
+
+// =====================================================================
+// SCHEDULER — scenario steps are generators that yield wait conditions.
+// =====================================================================
+let tasks = [];
+function isReady(c) {
+  if (c.until !== undefined) return simTime >= c.until;
+  if (c.packet) return c.packet.done;
+  if (c.tasks) return c.tasks.every(t => t.done);
+  return true;
+}
+function runTask(t) {
+  for (;;) {
+    if (t.wait) { if (!isReady(t.wait)) return; t.wait = null; }
+    const r = t.gen.next();
+    if (r.done) { t.done = true; return; }
+    t.wait = r.value || null;
+  }
+}
+function spawn(gen) { const t = { gen, wait: null, done: false }; tasks.push(t); runTask(t); return t; }
+const wait = ms => ({ until: simTime + ms });
+function all(...items) {
+  return { tasks: items.map(it => spawn(typeof it.next === 'function' ? it : (function* () { yield it; })())) };
+}
+
+// Packets travel through a list of part ids. `at[i]` runs when it reaches path[i].
+function send(path, kind, opts = {}) {
+  const p = { path, kind, label: opts.label || '', at: opts.at || {}, i: 0, t: 0, holdUntil: 0, done: false, blocked: false };
+  packets.push(p);
+  return { packet: p };
+}
+function arrive(p) {
+  const id = p.path[p.i];
+  P[id].flash = simTime + 450;
+  const s = p.at[p.i];
+  if (!s) return;
+  if (s.say) { floatAt(id, s.say); p.holdUntil = simTime + STOP; }
+  if (s.fn) s.fn();
+}
+function updatePackets(dt) {
+  for (const p of packets) {
+    const last = p.path.length - 1;
+    if (p.i >= last) { if (simTime >= p.holdUntil) p.done = true; continue; }
+    if (simTime < p.holdUntil) continue;
+    let move = SPEED * dt;
+    while (move > 0 && p.i < last) {
+      const pts = segPts(p.path[p.i], p.path[p.i + 1]);
+      const len = Math.max(1, polyLen(pts));
+      const remain = (1 - p.t) * len;
+      // The robot standing on the wire stops the signal in front of it.
+      if (robotBlocks(pointAt(pts, p.t * len + Math.min(move, remain)))) {
+        // Game rule: a stuck signal bumps into the robot again every 1.5 s, and every bump counts.
+        if (!p.blocked || simTime >= p.nextBump) { p.blocked = true; p.nextBump = simTime + 1500; onBlocked(p); }
+        break;
+      }
+      p.blocked = false;
+      if (move < remain) { p.t += move / len; move = 0; }
+      else { move -= remain; p.i++; p.t = 0; arrive(p); if (simTime < p.holdUntil) break; }
+    }
+  }
+  packets = packets.filter(p => !p.done);
+}
+// A float is a short note above a part id, or at a world point {x, y}.
+function floatAt(where, text) { floats.push({ where, text, until: simTime + 1900 }); }
+
+// =====================================================================
+// SCENARIO — the two nodes' example life, in a loop.
+// =====================================================================
+function other(n) { return n === 'A' ? 'B' : 'A'; }
+function hex4(len) { return [24, 16, 8, 0].map(s => ((len >>> s) & 255).toString(16).toUpperCase().padStart(2, '0')).join(' '); }
+const enc = new TextEncoder();
+function jsonBytes(obj) {
+  // .NET escapes non-ASCII as \uXXXX, so count with the same rule.
+  const json = JSON.stringify(obj).replace(/[\u0080-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  return enc.encode(json).length;
+}
+const START = Date.UTC(2026, 9, 19, 12, 0, 0);
+const simDate = () => new Date(START + simTime);
+const utcStamp = () => simDate().toISOString().replace(/\.\d+Z$/, 'Z');
+const sentStamp = () => simDate().toISOString().replace(/\.\d+Z$/, '.0000000+00:00');
+const endpoint = n => n === 'A' ? `${INFO.A.ip}:${INFO.A.outPort}` : `${INFO.B.ip}:${INFO.B.port}`;
+
+// A real Chatap log line. The time is taken now, when it happens (like LogWriter.Log).
+// peer = true: the line goes to the conversation file, else to node.txt.
+function* logLine(n, from, text, peer = false) {
+  const line = `${utcStamp()}  ${text}`;
+  yield send([`${n}.${from}`, `${n}.log`], 'log', { at: { 1: { fn: () => { N[n].logLines++; intake(n, from === 'node' ? 'node' : 'handler', peer, line); } } } });
+}
+function* typeInto(n, text) {
+  N[n].typing = '';
+  for (const c of text) { N[n].typing += c; yield wait(65); }
+  yield wait(350);
+}
+function* hello(x) {
+  const y = other(x);
+  const len = jsonBytes({ type: 'hello', id: INFO[x].id, version: 1 });
+  yield send([`${x}.handler`, `${x}.codec`, `${y}.codec`, `${y}.handler`], 'hello', { at: {
+    1: { say: `frame: ${hex4(len)} + ${len} B`, fn: () => { N[x].lastFrame = len; } },
+    2: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; } },
+    3: { say: 'hello v1 ✓ → Ready', fn: () => { N[y].handlerState = 'Ready'; spawn(logLine(y, 'handler', `hello from ${endpoint(x)}: ready`, true)); } },
+  } });
+}
+function* ready(n) {
+  yield send([`${n}.handler`, `${n}.window`], 'cmd', { label: 'Ready', at: {
+    1: { say: 'tab opens (UI thread)', fn: () => { N[n].tab = `Node ${other(n)}`; } },
+  } });
+}
+// Chat messages are saved by the store; the handler does not log them.
+function* chat(x, text) {
+  const y = other(x);
+  yield* typeInto(x, text);
+  N[x].typing = '';
+  N[x].chat.push({ from: x, text });
+  const len = jsonBytes({ type: 'chat', text, sent: sentStamp() });
+  yield send([`${x}.window`, `${x}.handler`, `${x}.store`, `${x}.handler`, `${x}.codec`, `${y}.codec`, `${y}.handler`, `${y}.store`, `${y}.handler`, `${y}.window`], 'chat', { at: {
+    1: { say: 'SendAsync' },
+    2: { say: 'saved before send', fn: () => N[x].storeLines++ },
+    4: { say: `prefix ${hex4(len)} → ${len} B`, fn: () => { N[x].lastFrame = len; } },
+    5: { say: `read 4 B, then ${len} B`, fn: () => { N[y].lastFrame = len; } },
+    6: { say: 'MessageReceived' },
+    7: { say: 'saved', fn: () => N[y].storeLines++ },
+    9: { say: 'posted to UI thread', fn: () => N[y].chat.push({ from: x, text }) },
+  } });
+}
+function* scenario() {
+  for (;;) {
+    resetRun();
+    yield wait(600);
+    if (loops++ === 0) {
+      // The nodes start once; later loops are new conversations, not restarts.
+      for (const n of ['A', 'B']) { N[n].listening = true; floatAt(`${n}.node`, `port 0 → OS gives :${INFO[n].port}`); }
+      yield all(logLine('A', 'node', `listening on port ${INFO.A.port}`), logLine('B', 'node', `listening on port ${INFO.B.port}`));
+    }
+    yield wait(1200);
+
+    // Human A types B's address and presses Connect.
+    yield* typeInto('A', `${INFO.B.ip}:${INFO.B.port}`);
+    floatAt('A.window', 'Connect');
+    yield send(['A.window', 'A.node'], 'cmd', { label: 'connect' });
+    N.A.typing = '';
+    spawn(logLine('A', 'node', `outgoing connection to ${INFO.B.ip}:${INFO.B.port}`));
+
+    // TCP three-way handshake (done by the operating systems), over the cable.
+    handshake = true;
+    events.add('sawHandshake');
+    yield send(['A.node', 'A.codec', 'B.codec', 'B.node'], 'syn', { label: 'SYN' });
+    yield send(['B.node', 'B.codec', 'A.codec', 'A.node'], 'syn', { label: 'SYN-ACK' });
+    yield send(['A.node', 'A.codec', 'B.codec', 'B.node'], 'syn', { label: 'ACK' });
+    handshake = false;
+    tcp = 'up';
+    floatAt('B.node', 'accept() → new socket');
+    floatAt('A.node', 'connected');
+    for (const n of ['A', 'B']) { N[n].handlerAlive = true; N[n].handlerState = 'WaitingForHello'; }
+    yield all(
+      send(['A.node', 'A.handler'], 'cmd', { label: 'socket' }),
+      send(['B.node', 'B.handler'], 'cmd', { label: 'socket' }),
+      logLine('B', 'node', `incoming connection from ${endpoint('A')}`));
+
+    // Both sides say hello first.
+    yield all(hello('A'), hello('B'));
+    yield all(ready('A'), ready('B'));
+    yield wait(800);
+
+    for (const [from, text] of CONVO) { yield* chat(from, text); yield wait(700); }
+    yield wait(1500);
+
+    // A closes the conversation. FIN goes one way, then the other.
+    floatAt('A.window', 'close conversation');
+    yield send(['A.window', 'A.handler'], 'cmd', { label: 'close' });
+    N.A.handlerState = 'Closed'; N.A.tab = null;
+    spawn(logLine('A', 'handler', 'closed: LocalClose (closed by this node)', true));
+    yield send(['A.handler', 'A.codec', 'B.codec', 'B.handler'], 'fin', { label: 'FIN', at: {
+      2: { say: 'read → 0 bytes → end' },
+      3: { say: 'EOF → Disconnected', fn: () => {
+        N.B.handlerState = 'Closed'; events.add('sawFin');
+        spawn(logLine('B', 'handler', 'closed: PeerClosed (the peer closed the connection)', true));
+      } },
+    } });
+    yield send(['B.handler', 'B.window'], 'cmd', { label: 'Disconnected', at: {
+      1: { fn: () => N.B.chat.push({ from: 'sys', text: 'Node A left.' }) },
+    } });
+    yield send(['B.handler', 'B.codec', 'A.codec', 'A.handler'], 'fin', { label: 'FIN', at: {
+      3: { say: 'other direction closed' },
+    } });
+    tcp = 'none';
+    for (const n of ['A', 'B']) N[n].handlerAlive = false;
+    yield wait(1600);
+    N.B.tab = null;
+    yield wait(3000);
+  }
+}
+
+// =====================================================================
+// INSIDE THE LOGWRITER — a factory floor. Each machine stands for one
+// thing LogWriter.cs really does; the papers are the real log lines.
+// =====================================================================
+const IW = 2400, IH = 1400;
+const IN_SPAWN = { x: 130, y: IH - 200 };
+const EXIT = { x: 70, y: IH - 26, w: 120, h: 26 };
+const PICK = { x: 1130, y: 410 }, DROP = { x: 1420, y: 410 };
+const PATH_IN = {
+  node:    [{ x: 140, y: 350 }, { x: 305, y: 410 }, { x: 470, y: 410 }, PICK],
+  handler: [{ x: 140, y: 470 }, { x: 305, y: 410 }, { x: 470, y: 410 }, PICK],
+};
+const PATH_OUT = {
+  node: [DROP, { x: 1600, y: 250 }, { x: 1900, y: 250 }],
+  peer: [DROP, { x: 1600, y: 570 }, { x: 1900, y: 570 }],
+};
+const PAPER_SPEED = 260, GAP = 46, ARM_TIME = 0.9, SORT_TIME = 0.4;
+const lastOf = a => a.length ? a[a.length - 1] : null;
+// Each station has a small terminal (term) the robot talks to.
+const STATIONS = [
+  { id: 'slots',    name: 'Mail slots',          plate: 'SLOTS',     x: 20,   y: 280, w: 120, h: 260, block: true,  term: { side: 'bottom', at: 0.5 } },
+  { id: 'gate',     name: 'Closing gate',        plate: 'GATE',      x: 20,   y: 130, w: 120, h: 120, block: true,  term: { side: 'right',  at: 0.5 } },
+  { id: 'clock',    name: 'Time clock',          plate: 'CLOCK',     x: 250,  y: 330, w: 110, h: 160, block: true,  term: { side: 'bottom', at: 0.5 } },
+  { id: 'belt',     name: 'Belt',                plate: 'BELT',      x: 470,  y: 380, w: 660, h: 60,  block: false, term: { side: 'bottom', at: 0.5 } },
+  { id: 'arm',      name: 'The one arm',         plate: 'ARM',       x: 1180, y: 450, w: 100, h: 130, block: true,  term: { side: 'bottom', at: 0.5 } },
+  { id: 'sorter',   name: 'Sorter',              plate: 'SORTER',    x: 1380, y: 350, w: 80,  h: 120, block: true,  term: { side: 'bottom', at: 0.5 } },
+  { id: 'shelf',    name: 'Day shelf',           plate: 'SHELF',     x: 1760, y: 110, w: 560, h: 600, block: false, bias: 90, term: { side: 'bottom', at: 0.12 } },
+  { id: 'nodeFile', name: 'node.txt',            plate: 'NODE.TXT',  x: 1900, y: 190, w: 300, h: 120, block: true,  term: { side: 'right',  at: 0.5 } },
+  { id: 'peerFile', name: 'Conversation file',   plate: 'PEER FILE', x: 1900, y: 510, w: 300, h: 120, block: true,  term: { side: 'right',  at: 0.5 } },
+  { id: 'lamp',     name: 'Red lamp & shredder', plate: 'LAMP',      x: 1170, y: 760, w: 170, h: 170, block: true,  term: { side: 'right',  at: 0.5 } },
+];
+function freshFactory() { return { items: [], arm: null, sorter: null, nodeLines: [], peerLines: [], clockHit: 0, slotHit: { node: 0, handler: 0 }, fileHit: { node: 0, peer: 0 } }; }
+const factory = { A: freshFactory(), B: freshFactory() };
+// One talkable instance of each station per node (the two factories are copies).
+const ST_INST = {};
+for (const n of ['A', 'B']) {
+  ST_INST[n] = {};
+  for (const st of STATIONS) ST_INST[n][st.id] = { kind: 'station', st, id: `${n}.st.${st.id}`, type: `st:${st.id}`, name: st.name, plate: st.plate, node: n, x: st.x, y: st.y, w: st.w, h: st.h, term: st.term };
+}
+const LEN_IN = { node: polyLen(PATH_IN.node), handler: polyLen(PATH_IN.handler) };
+const CLOCK_AT = { node: polyLen(PATH_IN.node.slice(0, 2)), handler: polyLen(PATH_IN.handler.slice(0, 2)) };
+
+function intake(n, src, peer, line) {
+  const f = factory[n];
+  f.items.push({ src, peer, line, path: PATH_IN[src], d: 0, state: 'in', stamped: false, t: 0 });
+  f.slotHit[src] = simTime + 400;
+}
+function updateFactory(n, dt) {
+  const f = factory[n];
+  let aheadRem = null;   // remaining belt distance of the paper in front
+  for (const it of f.items) {
+    if (it.state !== 'in') continue;
+    const len = LEN_IN[it.src], cur = len - it.d;
+    let rem = Math.max(cur - PAPER_SPEED * dt, aheadRem === null ? 0 : aheadRem + GAP, 0);
+    rem = Math.min(rem, cur);
+    it.d = len - rem;
+    if (!it.stamped && it.d >= CLOCK_AT[it.src]) { it.stamped = true; f.clockHit = simTime + 300; if (scene.kind === 'inside' && scene.node === n) sfxThunk(); }
+    if (rem === 0 && !f.arm) { it.state = 'arm'; f.arm = { item: it, t: 0 }; if (scene.kind === 'inside' && scene.node === n) sfxWhir(); continue; }
+    aheadRem = rem;
+  }
+  if (f.arm) {
+    f.arm.t += dt / ARM_TIME;
+    if (f.arm.t >= 1 && !f.sorter) { const it = f.arm.item; it.state = 'sort'; f.sorter = { item: it, t: 0 }; f.arm = null; }
+  }
+  if (f.sorter) {
+    f.sorter.t += dt / SORT_TIME;
+    if (f.sorter.t >= 1) { const it = f.sorter.item; it.state = 'out'; it.path = PATH_OUT[it.peer ? 'peer' : 'node']; it.d = 0; f.sorter = null; }
+  }
+  for (const it of f.items) {
+    if (it.state !== 'out') continue;
+    it.d += PAPER_SPEED * dt;
+    if (it.d >= polyLen(it.path)) {
+      it.state = 'done';
+      (it.peer ? f.peerLines : f.nodeLines).push(it.line);
+      f.fileHit[it.peer ? 'peer' : 'node'] = simTime + 500;
+    }
+  }
+  f.items = f.items.filter(it => it.state !== 'done');
+}
+function armItemPos(t) {
+  const cx = (PICK.x + DROP.x) / 2, r = (DROP.x - PICK.x) / 2, a = Math.PI * (1 - Math.min(1, t));
+  return { x: cx + Math.cos(a) * r, y: PICK.y - Math.sin(a) * r * 0.9 };
+}
+function itemPos(f, it) {
+  if (it.state === 'arm') return armItemPos(f.arm ? f.arm.t : 1);
+  if (it.state === 'sort') return { ...DROP };
+  return pointAt(it.path, it.d);
+}
+function nearestStation() {
+  let best = null, bd = Infinity;
+  for (const s of STATIONS) { const d = rectDist(robot.x, robot.y, s) + (s.bias || 0); if (d < bd) { bd = d; best = s; } }
+  return bd <= 110 ? best : null;
+}
+function nearExit() { return scene.kind === 'inside' && rectDist(robot.x, robot.y, EXIT) < 70; }
+function nearDoor() {
+  if (scene.kind !== 'world' || robot.ride) return null;
+  for (const n of ['A', 'B']) {
+    const d = doorRect(n);
+    if (robot.y > d.y + d.h - 4 && rectDist(robot.x, robot.y, d) < 60) return n;
+  }
+  return null;
+}
+function enterLog(n) {
+  if (swarm) for (const a of swarm.bodies) a.state = 'leave';
+  robot.pushed = null;
+  scene = { kind: 'inside', node: n, back: { x: robot.x, y: robot.y } };
+  robot.x = IN_SPAWN.x; robot.y = IN_SPAWN.y; robot.target = null; robot.dir = 1;
+  for (const st of STATIONS) st.near = false;
+  snapCamera();
+  think('It is dark in here. Machines are humming.', 3000);
+}
+function tryEnter(n) {
+  if (doorOpen[n]) enterLog(n);
+  else think('The door is closed. Maybe the LogWriter can open it.');
+}
+function exitLog() {
+  const back = scene.back;
+  scene = { kind: 'world' };
+  robot.x = back.x; robot.y = back.y; robot.target = null;
+  snapCamera();
+}
+
+// =====================================================================
+// ROBOT + INPUT
+// =====================================================================
+const RS = 1.25;   // robot drawing scale (about the size of a packet)
+const robot = { x: BOARD.A.x + 600, y: BOARD.A.y + 880, dir: 1, moving: false, phase: 0, target: null, ride: null, thought: null, pushed: null };
+const keys = new Set();
+const KEYMAP = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
+
+function rectDist(px, py, r) {
+  const dx = Math.max(r.x - px, 0, px - (r.x + r.w)), dy = Math.max(r.y - py, 0, py - (r.y + r.h));
+  return Math.hypot(dx, dy);
+}
+function nearestPart() {
+  if (robot.ride || scene.kind !== 'world') return null;
+  let best = null, bd = 60;
+  for (const p of parts) { const d = rectDist(robot.x, robot.y, p); if (d < bd) { bd = d; best = p; } }
+  return best;
+}
+function terminalsHere() { return scene.kind === 'inside' ? Object.values(ST_INST[scene.node]) : parts; }
+function nearTerminal() {
+  if (robot.ride) return null;
+  let best = null, bd = 50;
+  for (const p of terminalsHere()) { const d = rectDist(robot.x, robot.y, termRect(p)); if (d < bd) { bd = d; best = p; } }
+  return best;
+}
+function nearDock() {
+  if (robot.ride) return null;
+  const n = boardAt(robot.x, robot.y);
+  if (!n) return null;
+  const d = dock(n);
+  return Math.hypot(robot.x - d.x, robot.y - d.y) < 110 ? n : null;
+}
+// Feet may not leave the floor or drive into a machine, terminal or station.
+function blocked(x, y) {
+  if (scene.kind === 'inside') {
+    if (x < 20 || x > IW - 20 || y < 40 || y > IH - 12) return true;
+    for (const s of STATIONS) {
+      if (s.block && x > s.x - 8 && x < s.x + s.w + 8 && y > s.y - 8 && y < s.y + s.h + 8) return true;
+      const t = termRect(s);
+      if (x > t.x - 6 && x < t.x + t.w + 6 && y > t.y - 6 && y < t.y + t.h + 6) return true;
+    }
+    return false;
+  }
+  if (!boardAt(x, y)) return true;
+  for (const p of parts) {
+    if (x > p.x - 10 && x < p.x + p.w + 10 && y > p.y - 10 && y < p.y + p.h + 10) return true;
+    const t = termRect(p);
+    if (x > t.x - 6 && x < t.x + t.w + 6 && y > t.y - 6 && y < t.y + t.h + 6) return true;
+  }
+  return false;
+}
+function think(text, ms = 2600) { robot.thought = { text, until: performance.now() + ms }; }
+function hop() {
+  const n = nearDock();
+  if (!n) return;
+  if (tcp !== 'up') { think('The cable is gone. Nobody is connected right now.'); return; }
+  const pts = bridgePts(n);
+  robot.ride = { to: other(n), pts, len: polyLen(pts), d: 0 };
+  robot.target = null;
+}
+function interact() {
+  if (robot.ride || robot.pushed) return;
+  if (scene.kind === 'inside') {
+    if (nearExit()) return exitLog();
+    const t = nearTerminal();
+    if (t) return openDialog(t);
+    if (nearestStation()) think('This machine has a terminal somewhere. Let me look around it.');
+    return;
+  }
+  if (nearDock()) return hop();
+  const door = nearDoor();
+  if (door) return tryEnter(door);
+  const t = nearTerminal();
+  if (t) return openDialog(t);
+  if (nearestPart()) think('This machine has a terminal somewhere. Let me look around it.');
+}
+function updateRobot(dt) {
+  if (robot.ride) {
+    const r = robot.ride;
+    r.d += 1100 * dt;
+    const pos = pointAt(r.pts, Math.min(r.d, r.len));
+    robot.dir = r.pts[r.pts.length - 1].x > r.pts[0].x ? 1 : -1;
+    robot.x = pos.x; robot.y = pos.y; robot.moving = true; robot.phase += dt * 14;
+    if (r.d >= r.len) { const d = dock(r.to); robot.x = d.x; robot.y = d.y - 60; robot.ride = null; }
+    return;
+  }
+  if (robot.pushed) { robot.moving = false; return; }   // the antibodies are in control
+  let vx = 0, vy = 0;
+  if (!dlg.part) {
+    for (const k of keys) { const m = KEYMAP[k]; if (m === 'u') vy--; if (m === 'd') vy++; if (m === 'l') vx--; if (m === 'r') vx++; }
+  }
+  if (vx || vy) robot.target = null;
+  else if (robot.target) {
+    const t = robot.target;
+    const dx = t.x - robot.x, dy = t.y - robot.y, d = Math.hypot(dx, dy);
+    if (t.talk && nearTerminal() === t.talk) { robot.target = null; openDialog(t.talk); }
+    else if (t.hop && nearDock()) { robot.target = null; hop(); }
+    else if (t.door && nearDoor() === t.door) { robot.target = null; tryEnter(t.door); }
+    else if (t.exit && nearExit()) { robot.target = null; exitLog(); }
+    else if (d < 6) robot.target = null;
+    else { vx = dx / d; vy = dy / d; }
+  }
+  const len = Math.hypot(vx, vy);
+  robot.moving = false;
+  if (len > 0) {
+    const step = ROBOT_SPEED * dt;
+    const moved = tryMove((vx / len) * step, (vy / len) * step);
+    if (!moved && robot.target) { robot.target = null; think('Something is in my way.'); }
+    robot.moving = moved;
+    if (vx) robot.dir = vx > 0 ? 1 : -1;
+    if (moved) robot.phase += dt * 14;
+  }
+}
+// Move with collisions, one axis at a time so the robot slides along walls.
+function tryMove(dx, dy) {
+  const stuck = blocked(robot.x, robot.y);   // if a dragged part landed on us, let us drive out
+  let moved = false;
+  if (dx && (stuck || !blocked(robot.x + dx, robot.y))) { robot.x += dx; moved = true; }
+  if (dy && (stuck || !blocked(robot.x, robot.y + dy))) { robot.y += dy; moved = true; }
+  return moved;
+}
+
+// =====================================================================
+// BLOCKING + DEFENSIVE PROTOCOL (game mechanic only — Chatap has no such
+// thing; in real TCP a stalled byte stream simply waits.)
+// =====================================================================
+const BLOCK_LIMIT = 3;       // more blocks than this on one board starts the defence
+const ALERT_MS = 30000;      // how long a board stays on alert
+const defense = { A: { blocks: 0, alertUntil: 0 }, B: { blocks: 0, alertUntil: 0 } };
+let swarm = null;            // the antibodies currently out, or null
+const AB = RS / 2.6;         // antibody size follows the robot
+const SLOTS = [[-34, -70], [34, -70], [0, -105], [-46, -35], [46, -35], [-22, -138], [22, -138], [0, -40]].map(([x, y]) => [x * AB, y * AB]);
+
+function robotBody() { return { x: robot.x, y: robot.y - 6 * RS }; }
+function robotBlocks(pos) {
+  if (scene.kind !== 'world' || robot.ride || nearDock()) return false;   // the dock is a safe spot
+  const b = robotBody();
+  return Math.hypot(pos.x - b.x, pos.y - b.y) < 17 * RS;
+}
+function alert(n) { return defense[n].alertUntil > simTime; }
+function onBlocked(p) {
+  const n = boardAt(robot.x, robot.y);
+  if (!n) return;
+  const d = defense[n];
+  d.blocks++;
+  const b = robotBody();
+  floatAt({ x: b.x, y: b.y - 70 }, alert(n) ? 'signal blocked!' : `signal blocked (${d.blocks})`);
+  if (d.blocks > BLOCK_LIMIT || alert(n)) startDefense(n, p);
+}
+function startDefense(n, p) {
+  defense[n].alertUntil = simTime + ALERT_MS;
+  if (swarm) return;
+  const homes = parts.filter(q => q.node === n);
+  const bodies = SLOTS.map((slot, i) => {
+    const h = center(homes[i % homes.length]);
+    return { x: h.x, y: h.y, home: h, slot, state: 'fly', wob: Math.random() * 6 };
+  });
+  swarm = { node: n, packet: p, state: 'fly', t: 0, bodies };
+  floatAt(`${n}.handler`, 'DEFENSIVE PROTOCOL');
+  sfxAlarm();
+}
+function updateSwarm(dt) {
+  for (const n of ['A', 'B']) {
+    const d = defense[n];
+    if (d.alertUntil && simTime > d.alertUntil) { d.alertUntil = 0; d.blocks = 0; }
+  }
+  if (!swarm) return;
+  const s = swarm;
+  s.t += dt;
+  for (const a of s.bodies) {
+    a.wob += dt * 9;
+    if (a.state === 'fly') {
+      const tx = robot.x + a.slot[0], ty = robot.y + a.slot[1];
+      const dx = tx - a.x, dy = ty - a.y, dist = Math.hypot(dx, dy), step = 1400 * dt;
+      if (dist <= step) { a.state = 'stuck'; } else { a.x += dx / dist * step; a.y += dy / dist * step; }
+    } else if (a.state === 'stuck') {
+      a.x = robot.x + a.slot[0]; a.y = robot.y + a.slot[1];
+    } else if (a.state === 'leave') {
+      const dx = a.home.x - a.x, dy = a.home.y - a.y, dist = Math.hypot(dx, dy), step = 1400 * dt;
+      if (dist <= step) a.state = 'gone'; else { a.x += dx / dist * step; a.y += dy / dist * step; }
+    }
+  }
+  if (s.state === 'fly' && s.bodies.every(a => a.state === 'stuck')) {
+    s.state = 'push'; s.t = 0;
+    if (dlg.part) closeDialog();
+    robot.target = null;
+    robot.pushed = { dir: pushDirection(s.packet), left: 200 };
+    think('Hey! Stop pushing!');
+  } else if (s.state === 'push') {
+    const pu = robot.pushed;
+    if (pu) {
+      const step = Math.min(pu.left, 300 * dt);
+      pu.left -= step;
+      if (!tryMove(pu.dir.x * step, pu.dir.y * step)) {
+        // Wall on this side: try the other way once, then give up.
+        if (!pu.flipped) { pu.flipped = true; pu.dir = { x: -pu.dir.x, y: -pu.dir.y }; pu.left = 260; }
+        else pu.left = 0;
+      }
+      if (pu.left <= 0 && !stillBlocking()) robot.pushed = null;
+      else if (pu.left <= 0) pu.left = 80;    // still in the way: keep pushing
+      if (s.t > 5) robot.pushed = null;       // never hold the player forever
+    }
+    if (!robot.pushed) { s.state = 'leave'; for (const a of s.bodies) a.state = 'leave'; }
+  } else if (s.state !== 'push' && s.bodies.every(a => a.state === 'gone')) {
+    swarm = null;
+  }
+}
+function stillBlocking() { return packets.some(p => p.blocked); }
+// Push away from the wire the blocked signal travels on.
+function pushDirection(p) {
+  const b = robotBody();
+  let dx = 0, dy = -1;
+  if (p && !p.done && p.i < p.path.length - 1) {
+    const pts = segPts(p.path[p.i], p.path[p.i + 1]);
+    const len = polyLen(pts);
+    const a = pointAt(pts, p.t * len), c = pointAt(pts, Math.min(len, p.t * len + 20));
+    let tx = c.x - a.x, ty = c.y - a.y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    dx = -ty; dy = tx;
+    if ((b.x - a.x) * dx + (b.y - a.y) * dy < 0) { dx = -dx; dy = -dy; }
+  }
+  return { x: dx, y: dy };
+}
+
+addEventListener('keydown', e => {
+  if (dlg.part) {
+    if (e.key === 'Escape') { closeDialog(); e.preventDefault(); return; }
+    if (e.key === ' ' || e.key === 'Enter') { if (!dlg.optionsShown) { skipLine(); e.preventDefault(); } return; }
+    const num = parseInt(e.key, 10);
+    if (num >= 1 && dlg.optionsShown) { const b = dlgOpts.querySelectorAll('button')[num - 1]; if (b) { b.click(); e.preventDefault(); } }
+    return;
+  }
+  if (e.target.tagName === 'SELECT') return;
+  if (KEYMAP[e.code]) { keys.add(e.code); e.preventDefault(); }
+  if (e.code === 'KeyE' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); interact(); }
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+
+// Mouse / touch: drag machines; click to drive, talk, hop or enter.
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const view = { zoom: 1, cw: 1, ch: 1, dpr: 1 };
+const cam = { x: robot.x, y: robot.y - 40 };
+let drag = null;
+function toWorld(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left - view.cw / 2) / view.zoom + cam.x, y: (e.clientY - r.top - view.ch / 2) / view.zoom + cam.y };
+}
+function inRect(m, r) { return m.x >= r.x && m.x <= r.x + r.w && m.y >= r.y && m.y <= r.y + r.h; }
+function hitPart(m) {
+  if (scene.kind !== 'world') return null;
+  for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; if (inRect(m, p) || inRect(m, termRect(p))) return p; }
+  return null;
+}
+function hitDock(m) { if (scene.kind !== 'world') return null; for (const n of ['A', 'B']) { const d = dock(n); if (inRect(m, { x: d.x - 150, y: d.y - 96, w: 300, h: 96 })) return n; } return null; }
+function hitDoor(m) { if (scene.kind !== 'world') return null; for (const n of ['A', 'B']) if (inRect(m, doorRect(n))) return n; return null; }
+cv.addEventListener('pointerdown', e => {
+  const m = toWorld(e);
+  const part = hitPart(m);
+  drag = { start: m, last: m, part: part && inRect(m, part) && !hitDoor(m) ? part : null, clicked: part, moved: false };
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  const m = toWorld(e);
+  if (!drag) { cv.style.cursor = hitPart(m) || hitDock(m) ? 'pointer' : 'default'; return; }
+  if (!drag.moved && Math.hypot(m.x - drag.start.x, m.y - drag.start.y) > 8) drag.moved = true;
+  if (!drag.moved || !drag.part) return;
+  const p = drag.part, f = floor(p.node);
+  p.x = Math.max(f.x + TW + 10, Math.min(f.x + f.w - p.w - TW - 10, p.x + m.x - drag.last.x));
+  p.y = Math.max(f.y + TH + 10, Math.min(f.y + f.h - p.h - TH - 200, p.y + m.y - drag.last.y));
+  drag.last = m;
+  cv.style.cursor = 'grabbing';
+});
+cv.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  cv.style.cursor = 'default';
+  if (d.moved || dlg.part || robot.ride || robot.pushed) return;
+  if (scene.kind === 'inside') {
+    if (inRect(d.start, { x: EXIT.x - 20, y: EXIT.y - 60, w: EXIT.w + 40, h: 90 })) robot.target = { x: EXIT.x + EXIT.w / 2, y: EXIT.y - 30, exit: true };
+    else {
+      // Click a station (or its terminal): drive to the terminal and connect.
+      const st = STATIONS.find(q => inRect(d.start, termRect(q)) || (q.block && inRect(d.start, q)));
+      if (st) {
+        const inst = ST_INST[scene.node][st.id];
+        if (nearTerminal() === inst) openDialog(inst);
+        else { const sp = termSpot(inst); robot.target = { x: sp.x, y: sp.y, talk: inst }; }
+      } else if (!blocked(d.start.x, d.start.y)) robot.target = { x: d.start.x, y: d.start.y };
+    }
+    return;
+  }
+  const here = boardAt(robot.x, robot.y);
+  const dk = hitDock(d.start), door = hitDoor(d.start);
+  if (door) {
+    if (door !== here) think('That door is on the other board.');
+    else if (nearDoor() === door) tryEnter(door);
+    else { const r = doorRect(door); robot.target = { x: r.x + r.w / 2, y: r.y + r.h + 30, door }; }
+  } else if (d.clicked) {
+    const p = d.clicked;
+    if (p.node !== here) think('That is on the other board. I need to find a way across.');
+    else if (nearTerminal() === p) openDialog(p);
+    else { const s = termSpot(p); robot.target = { x: s.x, y: s.y, talk: p }; }
+  } else if (dk) {
+    if (dk !== here) think('That dock is on the other board.');
+    else if (nearDock()) hop();
+    else robot.target = { x: dock(dk).x, y: dock(dk).y - 60, hop: true };
+  } else if (boardAt(d.start.x, d.start.y) === here) robot.target = { x: d.start.x, y: d.start.y };
+  else think('I cannot drive on nothing.');
+});
+
+// =====================================================================
+// DIALOGUE
+// =====================================================================
+const dlgEl = document.getElementById('dlg'), dlgOpts = document.getElementById('dlgOpts');
+const dlgLine = document.getElementById('dlgLine'), dlgMore = document.getElementById('dlgMore'), dlgSpeaker = document.getElementById('dlgSpeaker');
+const know = { met: new Set(), metInst: new Set(), asked: new Set(), seen: {}, stations: new Set() };
+// dlg.part = what the robot is connected to: a machine in the world, or a station inside the LogWriter.
+const dlg = { part: null, queue: [], cur: null, optionsShown: false, delay: 0 };
+const doorOpen = { A: false, B: false }, doorAnim = { A: 0, B: 0 };
+const TOTAL_TOPICS = [...Object.values(DIALOGUE), ...Object.values(ST_DIALOGUE)].reduce((s, d) => s + d.topics.length, 0);
+
+function dialogueOf(t) { return t.kind === 'station' ? ST_DIALOGUE[t.st.id] : DIALOGUE[t.type]; }
+function nowLines(t) { return t.kind === 'station' ? ST_NOW[t.st.id](t.node) : NOW[t.type](t.node); }
+function linesOf(topic, t) { return typeof topic.lines === 'function' ? topic.lines(t.node) : topic.lines; }
+function available(t) {
+  return dialogueOf(t).topics.filter(tp =>
+    (!tp.requires || tp.requires.every(r => know.met.has(r) || events.has(r))) &&
+    (!tp.after || know.asked.has(`${t.type}.${tp.after}`)));
+}
+function partLabel(p) { return `${p.name} (Node ${p.node})`; }
+function shownName(p) { return know.metInst.has(p.id) ? p.name : '???'; }
+
+function openDialog(p) {
+  if (dlg.part || robot.ride || robot.pushed) return;
+  dlg.part = p; dlg.queue = []; dlg.cur = null; dlg.delay = 1.1;   // the modem connects first
+  robot.target = null; keys.clear();
+  dlgOpts.innerHTML = ''; dlgLine.textContent = ''; dlgSpeaker.textContent = '';
+  document.getElementById('dlgTitle').textContent = `Terminal link — ${p.name}, Node ${p.node}`;
+  document.getElementById('dlgName').textContent = p.name;
+  dlgEl.hidden = false;
+  sfxModem();
+  if (p.kind === 'station') know.stations.add(p.st.id);
+  const d = dialogueOf(p);
+  const seen = know.seen[p.id] || (know.seen[p.id] = new Set());
+  if (!know.met.has(p.type)) {
+    say(d.greet);
+    know.met.add(p.type); know.metInst.add(p.id);
+  } else if (!know.metInst.has(p.id)) {
+    say([['R', 'Hello. Have we met?'], ...d.twin]);
+    know.metInst.add(p.id);
+  } else {
+    const fresh = available(p).some(t => !seen.has(t.id) && !know.asked.has(`${p.type}.${t.id}`));
+    say([['P', fresh ? 'Oh. You came back. I have thought of something new.' : 'Oh. You came back.']]);
+  }
+  if (p.kind !== 'station' && alert(p.node)) say([['P', ALERT_LINE]]);
+  dlg.optionsShown = false;
+}
+function closeDialog() {
+  if (dlg.part) sfxHangup();
+  dlg.part = null; dlg.queue = []; dlg.cur = null; dlg.optionsShown = false;
+  dlgEl.hidden = true;
+}
+function say(lines) { dlg.queue.push(...lines); }
+// Space or click: show the whole line at once, or go to the next line.
+function skipLine() {
+  const c = dlg.cur; if (!c) return;
+  if (c.shown < c.text.length) c.shown = c.text.length;
+  else c.hold = 0;
+}
+function showOptions() {
+  const p = dlg.part, type = p.type;
+  const seen = know.seen[p.id];
+  const firstLook = seen.size === 0;
+  dlgOpts.innerHTML = '';
+  const avail = available(p);
+  const make = (label, fn, cls, badge) => {
+    const b = document.createElement('button');
+    b.className = 'w95' + (cls ? ' ' + cls : '');
+    b.textContent = `${dlgOpts.querySelectorAll('button').length + 1}. ${label}`;
+    if (badge) { const s = document.createElement('span'); s.className = 'badge'; s.textContent = badge; b.append(s); }
+    b.onclick = fn;
+    dlgOpts.append(b);
+  };
+  const ask = (lines) => { say(lines); dlg.optionsShown = false; dlgOpts.innerHTML = ''; };
+  // Questions not asked yet first, then the ones already asked.
+  const order = [...avail.filter(t => !know.asked.has(`${type}.${t.id}`)), ...avail.filter(t => know.asked.has(`${type}.${t.id}`))];
+  for (const t of order) {
+    const key = `${type}.${t.id}`, asked = know.asked.has(key);
+    const isNew = !asked && !firstLook && !seen.has(t.id);
+    make((asked ? '✓ ' : '') + t.ask, () => { know.asked.add(key); ask([['R', t.ask], ...linesOf(t, p)]); }, asked ? 'asked' : '', isNew ? 'new' : '');
+  }
+  if (p.kind !== 'station' && p.type === 'log') {
+    // The LogWriter's door opens only when you ask for it.
+    const open = !doorOpen[p.node];
+    make(open ? 'Could you open your door?' : 'Please close your door.', () => {
+      ask([['R', open ? 'Could you open your door?' : 'Please close your door.'],
+           ['P', open ? 'Opening. Mind the step.' : 'Closing. The machines will keep working in the dark.']]);
+      doorOpen[p.node] = open; sfxDoor();
+    }, 'action');
+  }
+  make('What are you doing right now?', () => ask([['R', 'What are you doing right now?'], ...nowLines(p).map(s => ['P', s])]));
+  make('Goodbye. (disconnect)', closeDialog);
+  for (const t of avail) seen.add(t.id);
+  const locked = dialogueOf(p).topics.length - avail.length;
+  if (locked > 0) {
+    const s = document.createElement('div'); s.className = 'locked';
+    s.textContent = locked === 1 ? 'There is one more thing to ask. Ask more, or learn more elsewhere.' : `There are ${locked} more things to ask. Ask more, or learn more elsewhere.`;
+    dlgOpts.append(s);
+  }
+  dlg.optionsShown = true;
+}
+document.getElementById('dlgText').addEventListener('click', skipLine);
+document.getElementById('dlgClose').onclick = closeDialog;
+
+function updateDialog(dt) {
+  if (!dlg.part) return;
+  if (dlg.delay > 0) {
+    dlg.delay -= dt;
+    dlgSpeaker.textContent = '';
+    dlgLine.textContent = 'CONNECTING' + '.'.repeat(1 + (Math.floor(performance.now() / 250) % 3));
+    dlgMore.style.visibility = 'hidden';
+    return;
+  }
+  if (!dlg.cur && dlg.queue.length) {
+    const [who, text] = dlg.queue.shift();
+    dlg.cur = { who, text, shown: 0, hold: 3 + text.length * 0.045 };
+    dlgSpeaker.textContent = who === 'R' ? 'Robot' : partLabel(dlg.part);
+  }
+  const c = dlg.cur;
+  if (c) {
+    if (c.shown < c.text.length) {
+      c.shown = Math.min(c.text.length, c.shown + 45 * dt);
+      dlgLine.textContent = c.text.slice(0, Math.floor(c.shown));
+      dlgMore.style.visibility = 'hidden';
+    } else {
+      dlgLine.textContent = c.text;
+      dlgMore.style.visibility = 'visible';
+      c.hold -= dt;
+      if (c.hold <= 0) dlg.cur = null;
+    }
+  } else if (!dlg.optionsShown) { dlgMore.style.visibility = 'hidden'; showOptions(); }
+}
+
+// ---------- the two faces in the dialogue box ----------
+const avR = document.getElementById('avR').getContext('2d'), avP = document.getElementById('avP').getContext('2d');
+function faceBevel(g, x, y, w, h, fill) {
+  g.fillStyle = fill; g.fillRect(x, y, w, h);
+  g.fillStyle = '#fff'; g.fillRect(x, y, w, 1); g.fillRect(x, y, 1, h);
+  g.fillStyle = '#000'; g.fillRect(x, y + h - 1, w, 1); g.fillRect(x + w - 1, y, 1, h);
+  g.fillStyle = '#808080'; g.fillRect(x + 1, y + h - 2, w - 2, 1); g.fillRect(x + w - 2, y + 1, 1, h - 2);
+}
+function drawRobotFace(g, talking, t) {
+  g.fillStyle = '#008080'; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = 'rgba(0,0,0,0.15)'; for (let y = 0; y < 64; y += 4) g.fillRect(0, y, 64, 1);
+  g.fillStyle = '#000'; g.fillRect(31, 5, 2, 10);
+  g.fillStyle = (t % 1.4) < 0.7 ? '#ff2020' : '#20c020'; g.fillRect(29, 1, 6, 5);
+  faceBevel(g, 8, 15, 48, 40, '#c0c0c0');
+  g.fillStyle = '#808080'; g.fillRect(10, 30, 2, 2); g.fillRect(52, 30, 2, 2);   // bolts
+  const blink = (t % 3.2) < 0.12;
+  g.fillStyle = '#000';
+  if (blink) { g.fillRect(18, 28, 9, 2); g.fillRect(37, 28, 9, 2); }
+  else { g.fillRect(18, 24, 9, 9); g.fillRect(37, 24, 9, 9); g.fillStyle = '#fff'; g.fillRect(20, 26, 2, 2); g.fillRect(39, 26, 2, 2); }
+  for (let i = 0; i < 6; i++) {
+    const h = talking ? 2 + Math.round(Math.abs(Math.sin(t * 17 + i * 1.3)) * 6) : 2;
+    g.fillStyle = '#202020'; g.fillRect(19 + i * 5, 46 - Math.floor(h / 2), 3, h);
+  }
+}
+function drawTerminalFace(g, target, talking, t) {
+  g.fillStyle = '#202020'; g.fillRect(0, 0, 64, 64);
+  faceBevel(g, 4, 3, 56, 50, '#c0c0c0');
+  g.fillStyle = '#000'; g.fillRect(9, 7, 46, 30);
+  const eye = target.kind !== 'station' && alert(target.node) ? '#ff4040' : target.kind === 'station' ? '#40e0ff' : '#40ff80';
+  const blink = (t % 4.1) < 0.14, look = Math.round(Math.sin(t * 0.8) * 2);
+  g.fillStyle = eye;
+  if (blink) { g.fillRect(15, 16, 11, 1); g.fillRect(38, 16, 11, 1); }
+  else {
+    g.fillRect(15, 12, 11, 8); g.fillRect(38, 12, 11, 8);
+    g.fillStyle = '#000'; g.fillRect(19 + look, 14, 3, 4); g.fillRect(42 + look, 14, 3, 4);
+  }
+  g.fillStyle = eye;
+  for (let i = 0; i < 8; i++) {
+    const h = talking ? 1 + Math.round(Math.abs(Math.sin(t * 19 + i * 0.9)) * 5) : 1;
+    g.fillRect(17 + i * 4, 29 - Math.floor(h / 2), 3, h);
+  }
+  g.fillStyle = 'rgba(0,0,0,0.35)'; for (let y = 7; y < 37; y += 2) g.fillRect(9, y, 46, 1);   // scanlines
+  // name plate on the terminal body
+  g.fillStyle = '#e8e0c0'; g.fillRect(9, 40, 46, 10);
+  g.fillStyle = '#000'; g.font = `600 7px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const plate = target.plate || target.name.replace('Connection', '').replace('Conversation', '').toUpperCase();
+  g.fillText(plate.length > 11 ? plate.slice(0, 10) + '…' : plate, 32, 45.5);
+  g.fillStyle = '#808080'; g.fillRect(24, 53, 16, 5); g.fillRect(14, 58, 36, 4);   // stand
+}
+function drawAvatars(now) {
+  if (!dlg.part) return;
+  const t = now / 1000, c = dlg.cur;
+  const talking = c && c.shown < c.text.length ? c.who : null;
+  document.getElementById('avRbox').classList.toggle('dim', !!c && c.who === 'P');
+  document.getElementById('avPbox').classList.toggle('dim', !!c && c.who === 'R');
+  drawRobotFace(avR, talking === 'R', t);
+  drawTerminalFace(avP, dlg.part, talking === 'P', t);
+}
+
+// =====================================================================
+// MAP FOG — the mini-map shows only places the robot has been near.
+// =====================================================================
+const FOG_RES = 10, REVEAL = 380;
+function makeFog(w, h) {
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(w / FOG_RES); c.height = Math.ceil(h / FOG_RES);
+  const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+  return { c, g };
+}
+const fogs = { world: makeFog(W, H), A: makeFog(IW, IH), B: makeFog(IW, IH) };
+function currentFog() { return scene.kind === 'world' ? fogs.world : fogs[scene.node]; }
+function reveal() {
+  const g = currentFog().g;
+  g.globalCompositeOperation = 'destination-out';
+  g.fillStyle = '#000'; g.beginPath(); g.arc(robot.x / FOG_RES, robot.y / FOG_RES, REVEAL / FOG_RES, 0, Math.PI * 2); g.fill();
+  g.globalCompositeOperation = 'source-over';
+}
+
+// =====================================================================
+// DRAWING
+// =====================================================================
+const C = { face: '#c0c0c0', light: '#dfdfdf', hi: '#ffffff', lo: '#808080', dk: '#000000', navy: '#000080', title2: '#1084d0', desk: '#008080', tip: '#ffffe1', voidc: '#004d4d' };
+const FONT = '"Pixelify Sans", monospace';
+function font(size, bold) { ctx.font = `${bold ? 600 : 400} ${size}px ${FONT}`; }
+function txt(s, x, y, size = 12, color = '#000', bold = false, align = 'left') {
+  font(size, bold); ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.fillText(s, x, y);
+}
+function fit(s, maxW) {
+  if (ctx.measureText(s).width <= maxW) return s;
+  while (s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+  return s + '…';
+}
+// Windows 95 3D edge; t = edge thickness in world px.
+function bevel(x, y, w, h, raised = true, fill = C.face, t = 2) {
+  ctx.fillStyle = fill; ctx.fillRect(x, y, w, h);
+  const [a, b, c, d] = raised ? [C.hi, C.dk, C.light, C.lo] : [C.lo, C.hi, C.dk, C.light];
+  ctx.fillStyle = a; ctx.fillRect(x, y, w, t); ctx.fillRect(x, y, t, h);
+  ctx.fillStyle = b; ctx.fillRect(x, y + h - t, w, t); ctx.fillRect(x + w - t, y, t, h);
+  ctx.fillStyle = c; ctx.fillRect(x + t, y + t, w - 2 * t, t); ctx.fillRect(x + t, y + t, t, h - 2 * t);
+  ctx.fillStyle = d; ctx.fillRect(x + t, y + h - 2 * t, w - 2 * t, t); ctx.fillRect(x + w - 2 * t, y + t, t, h - 2 * t);
+}
+function titleBar(x, y, w, h, mode = 'on') {
+  const g = ctx.createLinearGradient(x, 0, x + w, 0);
+  const [c1, c2] = mode === 'alert' ? ['#800000', '#e02020'] : mode === 'off' ? [C.lo, '#b0b0b0'] : [C.navy, C.title2];
+  g.addColorStop(0, c1); g.addColorStop(1, c2);
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+}
+
+function drawIcon(c, type, x, y, s) {
+  const r = (ax, ay, w, h, col) => { c.fillStyle = col; c.fillRect(x + ax * s, y + ay * s, w * s, h * s); };
+  if (type === 'window') {
+    r(2, 4, 20, 16, C.dk); r(3, 5, 18, 14, '#fff'); r(3, 5, 18, 4, C.navy);
+    r(5, 11, 12, 1, C.lo); r(5, 14, 9, 1, C.lo); r(5, 17, 11, 1, C.lo);
+  } else if (type === 'node') {
+    r(3, 10, 4, 4, C.navy);
+    for (const [ox, h] of [[9, 8], [13, 12], [17, 16]]) { r(ox, 12 - h / 2, 2, h, C.navy); }
+  } else if (type === 'handler') {
+    r(3, 7, 15, 2, C.dk); r(16, 5, 2, 6, C.dk); r(18, 6, 2, 4, C.dk); r(20, 7, 1, 2, C.dk);
+    r(6, 15, 15, 2, C.dk); r(6, 13, 2, 6, C.dk); r(4, 14, 2, 4, C.dk); r(3, 15, 1, 2, C.dk);
+  } else if (type === 'codec') {
+    for (let i = 0; i < 4; i++) r(1 + i * 4, 8, 3, 8, C.navy);
+    for (let i = 0; i < 2; i++) { r(17 + i * 3, 8, 3, 8, C.dk); r(17.5 + i * 3, 8.5, 2, 7, '#fff'); }
+  } else if (type === 'store') {
+    r(7, 2, 14, 18, C.dk); r(8, 3, 12, 16, '#fff');
+    r(4, 5, 14, 18, C.dk); r(5, 6, 12, 16, '#fff');
+    for (let i = 0; i < 4; i++) r(7, 9 + i * 3, 8, 1, C.lo);
+  } else if (type === 'log') {
+    r(3, 3, 15, 19, C.dk); r(4, 4, 13, 17, '#ffffe1');
+    for (let i = 0; i < 4; i++) r(6, 8 + i * 3, 9, 1, C.lo);
+    r(17, 12, 2, 2, C.dk); r(18, 10, 2, 2, C.dk); r(19, 8, 2, 2, '#c08000'); r(20, 6, 2, 2, '#c08000');
+  }
+}
+
+// Robot on tank treads. (x, y) = middle of the tread bottom.
+function drawRobot(c, x, y, s, dir, phase, moving, t) {
+  const jig = moving ? Math.round(Math.sin(phase * 2.3)) * 0.4 : 0;   // engine rumble
+  const r = (ax, ay, w, h, col) => { c.fillStyle = col; c.fillRect(x + ax * s, y + (ay + jig) * s, w * s, h * s); };
+  c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(x - 15 * s, y - 1 * s, 30 * s, 3 * s);   // shadow
+
+  // tread: dark belt, moving link marks top and bottom, rolling wheels
+  r(-14, -9, 28, 9, '#202020');
+  r(-13, -8, 26, 7, '#383838');
+  const off = ((phase * dir * 1.6) % 4 + 4) % 4;
+  for (let k = -14; k < 14; k += 4) {
+    const top = -13 + ((k + 13 + off) % 26 + 26) % 26;
+    const bot = -13 + ((k + 13 - off) % 26 + 26) % 26;
+    r(top, -9, 1.5, 1.2, '#707070');
+    r(bot, -1.2, 1.5, 1.2, '#707070');
+  }
+  for (const wx of [-9.5, -3.2, 3.2, 9.5]) {
+    const cx = x + wx * s, cy = y + (-4.5 + jig) * s, rad = 2.6 * s;
+    c.fillStyle = '#909090'; c.beginPath(); c.arc(cx, cy, rad, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#202020'; c.lineWidth = 0.6 * s;
+    const a = phase * dir * 1.3;
+    c.beginPath(); c.moveTo(cx - Math.cos(a) * rad, cy - Math.sin(a) * rad); c.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); c.stroke();
+    c.fillStyle = '#202020'; c.fillRect(cx - 0.6 * s, cy - 0.6 * s, 1.2 * s, 1.2 * s);
+  }
+
+  r(-10, -24, 20, 15, C.dk); r(-10, -24, 19, 14, C.hi); r(-9, -23, 18, 13, C.face);       // body
+  r(-6, -21, 12, 7, C.desk); r(-5, -19 + ((t * 2) % 5), 10, 1, '#5fd0d0');                   // chest screen
+  r(-2, -27, 4, 3, C.lo);                                                                       // neck
+  r(-9, -39, 18, 12, C.dk); r(-9, -39, 17, 11, C.hi); r(-8, -38, 16, 10, C.face);              // head
+  const blink = (t % 3.2) < 0.12;
+  if (!blink) { r(-5 + dir, -35, 3, 3, C.dk); r(2 + dir, -35, 3, 3, C.dk); } else { r(-5 + dir, -34, 3, 1, C.dk); r(2 + dir, -34, 3, 1, C.dk); }
+  r(-0.5, -44, 1, 5, C.dk);
+  r(-1.5, -47, 3, 3, (t % 1.4) < 0.7 ? '#ff2020' : '#20c020');                                // antenna light
+}
+
+function drawPortrait(type) {
+  const pc = document.getElementById('pf').getContext('2d');
+  pc.clearRect(0, 0, 30, 30);
+  pc.fillStyle = C.face; pc.fillRect(0, 0, 30, 30);
+  drawIcon(pc, type, 3, 3, 1);
+}
+
+function drawVoid() {
+  ctx.fillStyle = C.voidc; ctx.fillRect(-3000, -3000, W + 6000, H + 6000);
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  for (let gx = 0; gx < W; gx += 90) for (let gy = 0; gy < H; gy += 90) ctx.fillRect(gx + ((gy / 90) % 2) * 45, gy, 3, 3);
+}
+function drawBoard(n) {
+  const b = BOARD[n], on = alert(n), blink = on && (simTime % 800) < 400;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(b.x + 30, b.y + 30, BW, BH);   // drop shadow into the void
+  bevel(b.x, b.y, BW, BH, true, C.face, 5);
+  titleBar(b.x + 8, b.y + 8, BW - 16, TITLE - 14, on ? 'alert' : 'on');
+  txt(`Node ${n} — ${INFO[n].ip}:${INFO[n].port}${on ? (blink ? '   ⚠ DEFENSIVE PROTOCOL' : '') : ''}`, b.x + 28, b.y + 54, 40, '#fff', true);
+  for (let i = 0; i < 3; i++) bevel(b.x + BW - 66 - i * 56, b.y + 16, 48, 42, true, C.face, 3);
+  txt('×', b.x + BW - 42, b.y + 50, 34, '#000', true, 'center');
+  const f = floor(n);
+  bevel(f.x, f.y, f.w, f.h, false, '#b4b4b4', 3);
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (let gx = f.x + 30; gx < f.x + f.w; gx += 60) for (let gy = f.y + 30; gy < f.y + f.h; gy += 60) ctx.fillRect(gx, gy, 4, 4);
+  // TCP dock on the bottom edge
+  const d = dock(n);
+  bevel(d.x - 150, d.y - 96, 300, 86, true, C.face, 3);
+  for (let i = 0; i < 10; i++) { ctx.fillStyle = i % 2 ? '#202020' : '#e8c800'; ctx.fillRect(d.x - 135 + i * 27, d.y - 34, 27, 14); }
+  txt('TCP dock', d.x, d.y - 50, 28, '#000', true, 'center');
+}
+
+function strokePts(pts, width, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y); ctx.stroke();
+}
+function drawWires() {
+  for (const n of ['A', 'B']) {
+    for (const [s, e] of WIRES) {
+      const pts = [center(P[`${n}.${s}`]), center(P[`${n}.${e}`])];
+      strokePts(pts, 16, C.lo); strokePts(pts, 8, '#505050');
+    }
+    const stub = [center(P[`${n}.codec`]), dock(n)];   // codec to dock, inside the board
+    strokePts(stub, 16, C.lo); strokePts(stub, 8, '#505050');
+  }
+}
+function drawCable() {
+  const pts = bridgePts('A');
+  const mid = pts[24];
+  if (tcp === 'up' || robot.ride) {
+    strokePts(pts, 26, C.dk); strokePts(pts, 13, tcp === 'up' ? '#e8e800' : '#807000');
+    labelBox(tcp === 'up' ? 'TCP connection' : 'connection closing…', mid.x, mid.y + 80, false, 34);
+  } else {
+    ctx.setLineDash([16, 24]); strokePts(pts, 6, 'rgba(255,255,255,0.3)'); ctx.setLineDash([]);
+    labelBox('no connection', mid.x, mid.y + 80, true, 34);
+  }
+  if (handshake) {
+    ctx.setLineDash([22, 18]); ctx.lineDashOffset = -simTime / 8; strokePts(pts, 8, '#5fa0ff'); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  }
+}
+function labelBox(s, x, y, faint, size = 18) {
+  font(size, false); const w = ctx.measureText(s).width + size * 0.8;
+  ctx.globalAlpha = faint ? 0.6 : 1;
+  ctx.fillStyle = C.tip; ctx.fillRect(x - w / 2, y - size, w, size * 1.4);
+  ctx.strokeStyle = C.dk; ctx.lineWidth = Math.max(1, size / 12); ctx.strokeRect(x - w / 2, y - size, w, size * 1.4);
+  txt(s, x, y + size * 0.1, size, '#000', false, 'center');
+  ctx.globalAlpha = 1;
+}
+// A speech bubble with word wrap; (x, bottom) = the point under the bubble.
+function bubble(s, x, bottom, size, maxW) {
+  font(size, false);
+  const lines = []; let line = '';
+  for (const word of s.split(' ')) {
+    const tryLine = line ? line + ' ' + word : word;
+    if (ctx.measureText(tryLine).width > maxW && line) { lines.push(line); line = word; } else line = tryLine;
+  }
+  if (line) lines.push(line);
+  const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + size, lh = size * 1.25, h = lines.length * lh + size * 0.6;
+  const top = bottom - h - 8;
+  ctx.fillStyle = C.tip; ctx.fillRect(x - w / 2, top, w, h);
+  ctx.beginPath(); ctx.moveTo(x - 6, top + h); ctx.lineTo(x, bottom); ctx.lineTo(x + 6, top + h); ctx.fill();
+  ctx.strokeStyle = C.dk; ctx.lineWidth = 1.2; ctx.strokeRect(x - w / 2, top, w, h);
+  lines.forEach((l, i) => txt(l, x - w / 2 + size / 2, top + size * 0.3 + (i + 1) * lh - size * 0.25, size, '#000'));
+}
+
+function statusLines(p) {
+  const s = N[p.node];
+  switch (p.type) {
+    case 'node': return !s.listening ? ['starting…'] : handshake ? [p.node === 'A' ? 'connecting…' : 'someone knocks', `:${INFO[p.node].port}`] : ['listening', `:${INFO[p.node].port}`];
+    case 'handler': return s.handlerAlive ? [s.handlerState, `peer: Node ${other(p.node)}`] : ['(no conversation)'];
+    case 'codec': return s.lastFrame ? [`last: ${s.lastFrame} B`, hex4(s.lastFrame)] : ['idle'];
+    case 'store': return [`lines: ${s.storeLines}`, `${INFO[other(p.node)].id.slice(0, 8)}….jsonl`];
+    case 'log': return [`lines: ${s.logLines}`, 'node.txt · peer.txt'];
+  }
+  return [];
+}
+function drawPart(p) {
+  const s = N[p.node];
+  const ghost = p.type === 'handler' && !s.handlerAlive;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(p.x + 14, p.y + 14, p.w, p.h);
+  if (ghost) { ctx.fillStyle = '#b4b4b4'; ctx.fillRect(p.x, p.y, p.w, p.h); }
+  ctx.globalAlpha = ghost ? 0.5 : 1;
+  bevel(p.x, p.y, p.w, p.h, true, C.face, 5);
+  titleBar(p.x + 8, p.y + 8, p.w - 16, 60, ghost ? 'off' : alert(p.node) ? 'alert' : 'on');
+  font(38, true); ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+  ctx.fillText(fit(shownName(p), p.w - 50), p.x + 24, p.y + 52);
+  if (p.type === 'window') drawWindowBody(p);
+  else {
+    drawIcon(ctx, p.type, p.x + 34, p.y + 110, 6.4);
+    statusLines(p).forEach((line, i) => {
+      font(i ? 32 : 46, i === 0); ctx.fillStyle = i ? '#303030' : '#000'; ctx.textAlign = 'left';
+      ctx.fillText(fit(line, p.w - 250), p.x + 228, p.y + 170 + i * 56);
+    });
+  }
+  ctx.globalAlpha = 1;
+  if (p.flash > simTime) { ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 10; ctx.strokeRect(p.x - 6, p.y - 6, p.w + 12, p.h + 12); }
+  if (p.type === 'log') drawDoor(p.node);
+  drawTerminal(p);
+}
+function drawDoor(n) {
+  const d = doorRect(n);
+  doorAnim[n] += ((doorOpen[n] ? 1 : 0) - doorAnim[n]) * 0.1;
+  ctx.fillStyle = '#e8c800'; ctx.fillRect(d.x - 6, d.y - 6, d.w + 12, d.h + 6);
+  ctx.fillStyle = '#101010'; ctx.fillRect(d.x, d.y, d.w, d.h);
+  for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(255,200,0,${0.05 + 0.05 * Math.sin(performance.now() / 300 + i)})`; ctx.fillRect(d.x + 6 + i * 18, d.y + 30, 10, d.h - 30); }
+  // the shutter rolls up when the door opens
+  const sh = d.h * (1 - doorAnim[n]);
+  for (let y = 0; y < sh; y += 10) { ctx.fillStyle = (y / 10) % 2 ? '#8a8a8a' : '#a8a8a8'; ctx.fillRect(d.x, d.y + y, d.w, Math.min(10, sh - y)); }
+  bevel(d.x + 4, d.y - 34, d.w - 8, 26, true, C.face, 2);
+  txt(doorOpen[n] ? 'IN' : 'CLOSED', d.x + d.w / 2, d.y - 14, doorOpen[n] ? 18 : 13, doorOpen[n] ? C.navy : '#800000', true, 'center');
+}
+function drawTerminal(p) { drawTerminalBox(termRect(p), dlg.part === p); }
+function drawTerminalBox(t, active) {
+  const now = performance.now();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(t.x + 5, t.y + 5, t.w, t.h);
+  bevel(t.x, t.y, t.w, t.h, true, C.face, 2);
+  ctx.fillStyle = C.dk; ctx.fillRect(t.x + 6, t.y + 6, t.w - 12, 34);
+  ctx.fillStyle = active ? '#40ff60' : '#20a040';
+  if (active) {
+    for (let i = 0; i < 4; i++) ctx.fillRect(t.x + 10, t.y + 10 + i * 7, 8 + ((i * 37 + Math.floor(now / 120)) % 26), 3);
+  } else {
+    font(16, true); ctx.textAlign = 'left';
+    ctx.fillText('>' + ((now % 1000) < 500 ? '_' : ''), t.x + 11, t.y + 29);
+  }
+  for (let i = 0; i < 3; i++) { ctx.fillStyle = C.lo; ctx.fillRect(t.x + 8, t.y + 47 + i * 6, t.w - 16, 3); }
+  if (active) {
+    // the robot's plug cable from its antenna to the terminal
+    const a = { x: robot.x, y: robot.y - 46 * RS }, b = { x: t.x + t.w / 2, y: t.y + 24 };
+    ctx.strokeStyle = C.dk; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(a.x, a.y);
+    ctx.quadraticCurveTo((a.x + b.x) / 2, Math.max(a.y, b.y) + 40, b.x, b.y); ctx.stroke();
+    ctx.strokeStyle = '#e8c800'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+}
+function drawWindowBody(p) {
+  const s = N[p.node];
+  const x = p.x + 18, y = p.y + 80, w = p.w - 36, h = p.h - 98;
+  bevel(x, y, w, h, false, '#fff', 3);
+  font(34, true); ctx.textAlign = 'left'; ctx.fillStyle = C.navy;
+  ctx.fillText(fit(s.tab ? `[ ${s.tab} ]` : `Me: ${INFO[p.node].ip}:${INFO[p.node].port}`, w - 40), x + 20, y + 48);
+  const rows = s.chat.slice(-7);
+  rows.forEach((m, i) => {
+    const who = m.from === 'sys' ? '' : m.from === p.node ? 'Me: ' : `${m.from}: `;
+    font(30, false); ctx.fillStyle = m.from === 'sys' ? C.lo : m.from === p.node ? '#000' : '#004040';
+    ctx.fillText(fit(who + m.text, w - 40), x + 20, y + 98 + i * 44);
+  });
+  if (!s.tab && !rows.length) { font(30, false); ctx.fillStyle = C.lo; ctx.fillText('(no tabs)', x + 20, y + 100); }
+  bevel(x + 12, y + h - 66, w - 24, 54, false, '#fff', 3);   // input field
+  const caret = (performance.now() % 1000) < 500 ? '_' : '';
+  font(30, false); ctx.fillStyle = '#000';
+  ctx.fillText(fit((s.typing || '') + (s.typing ? caret : ''), w - 60), x + 28, y + h - 28);
+}
+
+function packetPos(p) {
+  const last = p.path.length - 1;
+  if (p.i >= last) return center(P[p.path[last]]);
+  const pts = segPts(p.path[p.i], p.path[p.i + 1]);
+  const pos = pointAt(pts, p.t * polyLen(pts));
+  pos.onCable = pts.length > 2 && p.t > 0.04 && p.t < 0.96;
+  return pos;
+}
+function drawPacket(p) {
+  const { x, y, onCable } = packetPos(p);
+  if ((p.kind === 'chat' || p.kind === 'hello') && onCable) {
+    // On the cable it is only bytes: 4 prefix bytes, then the JSON body.
+    for (let i = 0; i < 10; i++) {
+      const bx = x - 110 + i * 22;
+      ctx.fillStyle = C.dk; ctx.fillRect(bx, y - 18, 22, 36);
+      ctx.fillStyle = i < 4 ? C.navy : p.kind === 'hello' ? '#ffd800' : '#fff'; ctx.fillRect(bx + 3, y - 15, 16, 30);
+    }
+  } else if (p.kind === 'chat') {
+    ctx.fillStyle = C.dk; ctx.fillRect(x - 32, y - 22, 64, 44); ctx.fillStyle = '#fff'; ctx.fillRect(x - 28, y - 18, 56, 36);
+    ctx.strokeStyle = C.dk; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x - 28, y - 18); ctx.lineTo(x, y + 4); ctx.lineTo(x + 28, y - 18); ctx.stroke();
+  } else if (p.kind === 'hello') {
+    ctx.fillStyle = C.dk; ctx.fillRect(x - 28, y - 28, 56, 56); ctx.fillStyle = '#ffd800'; ctx.fillRect(x - 24, y - 24, 48, 48);
+    txt('H', x, y + 15, 42, '#000', true, 'center');
+  } else if (p.kind === 'log') {
+    ctx.fillStyle = C.dk; ctx.fillRect(x - 16, y - 12, 32, 24); ctx.fillStyle = '#f4f4f4'; ctx.fillRect(x - 13, y - 9, 26, 18);
+    ctx.fillStyle = C.lo; ctx.fillRect(x - 9, y - 4, 18, 2); ctx.fillRect(x - 9, y + 2, 12, 2);
+  } else {
+    const col = p.kind === 'fin' ? '#d00000' : p.kind === 'syn' ? '#0050ff' : C.navy;
+    ctx.fillStyle = C.dk; ctx.fillRect(x - 22, y - 22, 44, 44); ctx.fillStyle = col; ctx.fillRect(x - 18, y - 18, 36, 36);
+    if (p.label) labelBox(p.label, x, y - 34, false, 16);
+  }
+  if (p.blocked) {
+    // a blocked signal shakes and shows a red stop mark
+    const j = Math.sin(performance.now() / 40) * 3;
+    ctx.strokeStyle = '#d00000'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(x + j, y, 40, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + j - 28, y + 28); ctx.lineTo(x + j + 28, y - 28); ctx.stroke();
+  }
+}
+function drawFloats() {
+  const count = {};
+  for (const f of floats) {
+    const life = Math.max(0, f.until - simTime), rise = (1 - Math.min(1, life / 1900)) * 12;
+    ctx.globalAlpha = Math.min(1, life / 400);
+    if (typeof f.where === 'string') {
+      const p = P[f.where]; const k = count[f.where] = (count[f.where] || 0) + 1;
+      labelBox(f.text, p.x + p.w / 2, p.y - 16 - (k - 1) * 38 - rise, false, 24);
+    } else labelBox(f.text, f.where.x, f.where.y - rise, false, 12);
+  }
+  ctx.globalAlpha = 1;
+  floats = floats.filter(f => f.until > simTime);
+}
+function drawSwarm() {
+  if (!swarm || scene.kind !== 'world') return;
+  for (const a of swarm.bodies) {
+    if (a.state === 'gone') continue;
+    const wx = a.state === 'stuck' ? Math.sin(a.wob) * 2 : 0, wy = a.state === 'stuck' ? Math.cos(a.wob * 1.3) * 1.5 : 0;
+    const x = a.x + wx, y = a.y + wy, k = AB;
+    ctx.fillStyle = C.dk; ctx.beginPath(); ctx.arc(x, y, 26 * k, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffe000'; ctx.beginPath(); ctx.arc(x, y, 22 * k, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d00000'; ctx.fillRect(x - 5 * k, y - 15 * k, 10 * k, 19 * k); ctx.fillRect(x - 5 * k, y + 8 * k, 10 * k, 8 * k);
+    // tiny legs, wiggling
+    ctx.strokeStyle = C.dk; ctx.lineWidth = 4 * k;
+    const l = Math.sin(a.wob * 2) * 6 * k;
+    ctx.beginPath(); ctx.moveTo(x - 12 * k, y + 20 * k); ctx.lineTo(x - 18 * k + l, y + 34 * k); ctx.moveTo(x + 12 * k, y + 20 * k); ctx.lineTo(x + 18 * k - l, y + 34 * k); ctx.stroke();
+  }
+}
+function drawRobotLabels() {
+  const top = robot.y - 50 * RS - (swarm && swarm.state !== 'leave' && scene.kind === 'world' ? 60 : 0);
+  if (robot.thought && robot.thought.until > performance.now()) { bubble(robot.thought.text, robot.x, top - 4, 11, 260); return; }
+  if (dlg.part || robot.ride || robot.pushed) return;
+  let hint = null, faint = false;
+  if (scene.kind === 'inside') {
+    if (nearExit()) hint = 'E: go back outside';
+    else { const t = nearTerminal(); if (t) hint = `E: connect to the ${shownName(t)} terminal`; else if (nearestStation()) { hint = 'Where is this machine\'s terminal?'; faint = true; } }
+  }
+  else if (nearDock()) { hint = tcp === 'up' ? 'E: hop on the TCP cable' : 'The cable is gone (no connection)'; faint = tcp !== 'up'; }
+  else if (nearDoor()) { const o = doorOpen[nearDoor()]; hint = o ? 'E: enter the LogWriter' : 'The door is closed'; faint = !o; }
+  else { const t = nearTerminal(); if (t) hint = `E: connect to the ${shownName(t)} terminal`; else if (nearestPart()) { hint = 'Where is this machine\'s terminal?'; faint = true; } }
+  if (hint) labelBox(hint, robot.x, top - 6, faint, 11);
+}
+
+// ---------- inside the LogWriter ----------
+function drawStationBox(s, title) {
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x + 8, s.y + 8, s.w, s.h);
+  bevel(s.x, s.y, s.w, s.h, true, C.face, 3);
+  titleBar(s.x + 5, s.y + 5, s.w - 10, 22);
+  font(15, true); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(fit(title, s.w - 16), s.x + 9, s.y + 21);
+}
+function drawInside() {
+  const n = scene.node, f = factory[n], now = performance.now();
+  ctx.fillStyle = '#000'; ctx.fillRect(-3000, -3000, IW + 6000, IH + 6000);
+  // floor with a soft light from above; darkness outside it
+  const g = ctx.createRadialGradient(IW / 2, IH / 2, 200, IW / 2, IH / 2, IW * 0.75);
+  g.addColorStop(0, '#6e6e6e'); g.addColorStop(1, '#3a3a3a');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, IW, IH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
+  for (let x = 0; x <= IW; x += 100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, IH); ctx.stroke(); }
+  for (let y = 0; y <= IH; y += 100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(IW, y); ctx.stroke(); }
+  for (let i = 0; i < IW / 40; i++) { ctx.fillStyle = i % 2 ? '#202020' : '#c8a800'; ctx.fillRect(i * 40, 0, 40, 10); ctx.fillRect(i * 40, IH - 10, 40, 10); }
+  for (let i = 0; i < IH / 40; i++) { ctx.fillStyle = i % 2 ? '#202020' : '#c8a800'; ctx.fillRect(0, i * 40, 10, 40); ctx.fillRect(IW - 10, i * 40, 10, 40); }
+  txt(`INSIDE THE LOGWRITER — NODE ${n}`, IW / 2, 70, 44, 'rgba(255,255,255,0.18)', true, 'center');
+
+  // belts (paths), with rolling marks
+  const roll = (simTime / 12) % 30;
+  for (const pts of [PATH_IN.node, PATH_IN.handler.slice(0, 2), PATH_OUT.node, PATH_OUT.peer]) {
+    strokePts(pts, 34, '#1a1a1a'); strokePts(pts, 26, '#3c3c3c');
+    ctx.setLineDash([6, 24]); ctx.lineDashOffset = -roll; strokePts(pts, 26, '#5a5a5a'); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  }
+  // day shelf frame around the two files
+  const sh = STATIONS.find(s => s.id === 'shelf');
+  ctx.setLineDash([14, 10]); ctx.strokeStyle = '#c8a800'; ctx.lineWidth = 4; ctx.strokeRect(sh.x, sh.y, sh.w, sh.h); ctx.setLineDash([]);
+  txt(`${simDate().toISOString().slice(0, 10)}/`, sh.x + 16, sh.y + 34, 26, '#e8c800', true);
+
+  for (const s of STATIONS) {
+    if (s.id === 'belt' || s.id === 'shelf') continue;
+    if (s.id === 'slots') {
+      drawStationBox(s, 'Mail slots');
+      for (const [src, y, label] of [['node', 350, 'Node'], ['handler', 470, 'handlers']]) {
+        ctx.fillStyle = f.slotHit[src] > simTime ? '#ffe000' : '#101010'; ctx.fillRect(s.x + 70, y - 8, 50, 16);
+        txt(label, s.x + 10, y + 6, 15, '#000', true);
+      }
+    } else if (s.id === 'gate') {
+      drawStationBox(s, 'Closing gate');
+      for (let i = 0; i < 4; i++) { ctx.fillStyle = i % 2 ? '#808080' : '#a0a0a0'; ctx.fillRect(s.x + 12, s.y + 36 + i * 14, s.w - 24, 12); }
+      txt('OPEN', s.x + s.w / 2, s.y + s.h - 12, 15, '#006000', true, 'center');
+    } else if (s.id === 'clock') {
+      drawStationBox(s, 'Time clock');
+      const cx = s.x + s.w / 2, cy = s.y + 70, ang = simTime / 4000;
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(ang) * 24, cy - Math.cos(ang) * 24); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(ang / 12) * 15, cy - Math.cos(ang / 12) * 15); ctx.stroke();
+      const hit = f.clockHit > simTime;
+      ctx.fillStyle = '#505050'; ctx.fillRect(cx - 12, s.y + 104, 24, hit ? 34 : 16);     // stamp piston
+      ctx.fillStyle = '#c00000'; ctx.fillRect(cx - 16, s.y + (hit ? 136 : 118), 32, 8);
+      txt('UTC', cx, s.y + s.h - 6, 13, '#000', true, 'center');
+    } else if (s.id === 'arm') {
+      drawStationBox(s, 'The one arm');
+    } else if (s.id === 'sorter') {
+      drawStationBox(s, 'Sorter');
+      const it = f.sorter && f.sorter.item, up = it ? !it.peer : null;
+      ctx.strokeStyle = C.dk; ctx.lineWidth = 6; ctx.beginPath();
+      ctx.moveTo(s.x + 20, s.y + 74); ctx.lineTo(s.x + 60, up === null ? s.y + 74 : up ? s.y + 44 : s.y + 104); ctx.stroke();
+      txt('ID?', s.x + s.w / 2, s.y + s.h - 6, 14, '#000', true, 'center');
+    } else if (s.id === 'nodeFile' || s.id === 'peerFile') {
+      const isNode = s.id === 'nodeFile', lines = isNode ? f.nodeLines : f.peerLines;
+      const fname = isNode ? 'node.txt' : `${INFO[other(n)].id.slice(0, 8)}….txt`;
+      drawStationBox(s, fname);
+      const hit = f.fileHit[isNode ? 'node' : 'peer'] > simTime;
+      const stack = Math.min(14, lines.length);
+      for (let i = 0; i < stack; i++) { ctx.fillStyle = i % 2 ? '#e8e8e8' : '#fff'; ctx.fillRect(s.x + 14, s.y + s.h - 14 - i * 4, 60, 4); }
+      bevel(s.x + 86, s.y + 34, s.w - 100, s.h - 46, false, hit ? '#ffffc0' : '#fff', 2);
+      lines.slice(-3).forEach((l, i) => { font(11, false); ctx.fillStyle = '#000'; ctx.textAlign = 'left'; ctx.fillText(fit(l, s.w - 116), s.x + 94, s.y + 52 + i * 16); });
+      if (!lines.length) txt('(empty)', s.x + 94, s.y + 52, 12, C.lo);
+      txt(`${lines.length} lines`, s.x + 14, s.y + 46, 13, '#000', true);
+    } else if (s.id === 'lamp') {
+      drawStationBox(s, 'Red lamp & shredder');
+      ctx.fillStyle = '#4a0000'; ctx.beginPath(); ctx.arc(s.x + 44, s.y + 70, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = C.dk; ctx.lineWidth = 3; ctx.stroke();
+      txt('off', s.x + 44, s.y + 112, 13, '#000', true, 'center');
+      bevel(s.x + 86, s.y + 48, 70, 90, true, '#909090', 2);
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = C.dk; ctx.fillRect(s.x + 92 + i * 10, s.y + 56, 6, 12); }
+    }
+  }
+  for (const st of STATIONS) drawTerminalBox(termRect(st), dlg.part === ST_INST[n][st.id]);
+  // exit door in the bottom wall
+  ctx.fillStyle = '#e8c800'; ctx.fillRect(EXIT.x - 6, EXIT.y - 70, EXIT.w + 12, 70 + EXIT.h);
+  ctx.fillStyle = '#000'; ctx.fillRect(EXIT.x, EXIT.y - 64, EXIT.w, 64 + EXIT.h);
+  txt('EXIT', EXIT.x + EXIT.w / 2, EXIT.y - 24, 20, '#20e040', true, 'center');
+
+  // papers
+  for (const it of f.items) {
+    const p = itemPos(f, it);
+    ctx.fillStyle = C.dk; ctx.fillRect(p.x - 15, p.y - 11, 30, 22);
+    ctx.fillStyle = '#fafafa'; ctx.fillRect(p.x - 13, p.y - 9, 26, 18);
+    ctx.fillStyle = C.lo; ctx.fillRect(p.x - 9, p.y - 4, 18, 2); ctx.fillRect(p.x - 9, p.y + 1, 12, 2);
+    if (it.stamped) { ctx.fillStyle = '#c00000'; ctx.fillRect(p.x + 4, p.y - 8, 8, 5); }
+    if (it.peer) { ctx.fillStyle = '#1060ff'; ctx.fillRect(p.x - 13, p.y + 5, 8, 4); }
+  }
+  // the arm itself, drawn over the papers
+  const base = { x: (PICK.x + DROP.x) / 2, y: 520 };
+  const tip = f.arm ? armItemPos(f.arm.t) : { x: base.x, y: 330 + Math.sin(now / 900) * 6 };
+  const elbow = { x: (base.x + tip.x) / 2 - 30, y: Math.min(base.y, tip.y) - 40 };
+  ctx.strokeStyle = '#202020'; ctx.lineWidth = 16; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(elbow.x, elbow.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+  ctx.strokeStyle = '#e8a000'; ctx.lineWidth = 10;
+  ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(elbow.x, elbow.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+  ctx.fillStyle = '#202020'; ctx.beginPath(); ctx.arc(tip.x, tip.y - 14, 8, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawMinimap() {
+  const inside = scene.kind === 'inside';
+  const MW = inside ? IW : W, MH = inside ? IH : H;
+  const mw = Math.min(280, view.cw * 0.3), sc = mw / MW, mh = MH * sc, x0 = view.cw - mw - 12, y0 = 12;
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  bevel(x0 - 4, y0 - 4, mw + 8, mh + 8, true, C.face, 1);
+  const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x0 + x * sc, y0 + y * sc, Math.max(1.5, w * sc), Math.max(1.5, h * sc)); };
+  if (inside) {
+    R(0, 0, IW, IH, '#555');
+    for (const s of STATIONS) R(s.x, s.y, s.w, s.h, s.block ? (know.stations.has(s.id) ? C.navy : '#999') : (know.stations.has(s.id) ? '#5060a0' : '#777'));
+    R(EXIT.x, EXIT.y - 60, EXIT.w, 60, '#20e040');
+  } else {
+    R(0, 0, W, H, C.voidc);
+    for (const n of ['A', 'B']) {
+      R(BOARD[n].x, BOARD[n].y, BW, BH, alert(n) ? '#d08080' : '#b4b4b4');
+      const d = dock(n); R(d.x - 150, d.y - 96, 300, 86, '#e8c800');
+    }
+    if (tcp === 'up') {
+      const pts = bridgePts('A');
+      ctx.strokeStyle = '#e8e800'; ctx.lineWidth = 2; ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, x0 + p.x * sc, y0 + p.y * sc)); ctx.stroke();
+    }
+    for (const p of parts) {
+      R(p.x, p.y, p.w, p.h, know.metInst.has(p.id) ? C.navy : '#8a8a8a');
+      const t = termRect(p); R(t.x, t.y, t.w, t.h, '#20c040');
+    }
+    for (const n of ['A', 'B']) { const d = doorRect(n); R(d.x, d.y, d.w, d.h, '#ff9000'); }
+  }
+  ctx.drawImage(currentFog().c, x0, y0, mw, mh);   // unexplored = black
+  const hw = view.cw / 2 / view.zoom, hh = view.ch / 2 / view.zoom;
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(x0 + (cam.x - hw) * sc, y0 + (cam.y - hh) * sc, hw * 2 * sc, hh * 2 * sc);
+  ctx.fillStyle = '#ff2020'; ctx.fillRect(x0 + robot.x * sc - 2.5, y0 + robot.y * sc - 2.5, 5, 5);
+  if (inside) txt(`LogWriter, Node ${scene.node}`, x0 + 4, y0 + mh - 4, 12, '#fff', true);
+}
+
+function camBounds() { return scene.kind === 'inside' ? { x0: -300, y0: -300, x1: IW + 300, y1: IH + 300 } : { x0: 0, y0: 0, x1: W, y1: H }; }
+function updateCamera(dt) {
+  const k = 1 - Math.exp(-6 * dt);
+  cam.x += (robot.x - cam.x) * k; cam.y += (robot.y - 40 - cam.y) * k;
+  const b = camBounds(), hw = view.cw / 2 / view.zoom, hh = view.ch / 2 / view.zoom;
+  cam.x = b.x1 - b.x0 > hw * 2 ? Math.max(b.x0 + hw, Math.min(b.x1 - hw, cam.x)) : (b.x0 + b.x1) / 2;
+  cam.y = b.y1 - b.y0 > hh * 2 ? Math.max(b.y0 + hh, Math.min(b.y1 - hh, cam.y)) : (b.y0 + b.y1) / 2;
+}
+function snapCamera() { cam.x = robot.x; cam.y = robot.y - 40; updateCamera(0); }
+function render(now) {
+  const t = now / 1000, z = view.zoom * view.dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = scene.kind === 'inside' ? '#000' : C.voidc; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(z, 0, 0, z, view.dpr * (view.cw / 2 - cam.x * view.zoom), view.dpr * (view.ch / 2 - cam.y * view.zoom));
+  if (scene.kind === 'inside') drawInside();
+  else {
+    drawVoid();
+    drawBoard('A'); drawBoard('B');
+    drawWires();
+    drawCable();
+    for (const p of parts) drawPart(p);
+    for (const p of packets) drawPacket(p);
+    drawFloats();
+  }
+  drawRobot(ctx, robot.x, robot.y, RS, robot.dir, robot.phase, robot.moving || !!robot.pushed, t);
+  drawSwarm();
+  drawRobotLabels();
+  drawMinimap();
+}
+
+// =====================================================================
+// SOUND — all made live with the Web Audio API (no sound files).
+// Browsers allow sound only after the first click or key press.
+// =====================================================================
+const audio = { ctx: null, on: true };
+const BPM = 92, STEP = 60 / BPM / 4;                                       // one 16th note
+const CHORDS = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];   // Am F C G
+const LEAD = [76, null, 79, 81, 79, null, 76, 74, 72, null, 74, 76, 74, null, null, null];
+const HEAR = 1100, SOUND_C = 2600;   // hearing distance and "speed of sound" for the Doppler effect, in world px
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+
+function initAudio() {
+  if (audio.ctx) { if (audio.ctx.state === 'suspended') audio.ctx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  const a = audio.ctx = new AC();
+  audio.master = a.createGain(); audio.master.gain.value = audio.on ? 0.7 : 0; audio.master.connect(a.destination);
+  audio.musicFilter = a.createBiquadFilter(); audio.musicFilter.type = 'lowpass'; audio.musicFilter.frequency.value = 6000;
+  audio.music = a.createGain(); audio.music.gain.value = 0.16;
+  audio.music.connect(audio.musicFilter); audio.musicFilter.connect(audio.master);
+  audio.sfx = a.createGain(); audio.sfx.gain.value = 0.9; audio.sfx.connect(audio.master);
+  // echo for the arpeggio and the lead
+  audio.echo = a.createDelay(1); audio.echo.delayTime.value = STEP * 3;
+  const fb = a.createGain(); fb.gain.value = 0.35;
+  audio.echo.connect(fb); fb.connect(audio.echo); audio.echo.connect(audio.music);
+  const buf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  audio.noise = buf;
+  audio.next = a.currentTime + 0.1; audio.step = 0;
+  setInterval(musicTick, 25);
+}
+function tone(freq, t, dur, type, vol, dests, slideTo) {
+  const a = audio.ctx, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); for (const d of Array.isArray(dests) ? dests : [dests]) g.connect(d);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function noiseHit(t, dur, ftype, freq, vol, dest, q = 1) {
+  const a = audio.ctx, src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = audio.noise; f.type = ftype; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(dest); src.start(t, Math.random()); src.stop(t + dur + 0.05);
+}
+
+// ---------- the soundtrack: a slow chiptune loop ----------
+function musicTick() {
+  const a = audio.ctx;
+  while (audio.next < a.currentTime + 0.12) { playStep(audio.step, audio.next); audio.next += STEP; audio.step++; }
+}
+function playStep(i, t) {
+  const s = i % 16, bar = Math.floor(i / 16), chord = CHORDS[bar % 4];
+  if (s === 0 || s === 6 || s === 8 || s === 14) tone(mtof(chord[0] - 12), t, STEP * 1.8, 'triangle', 0.5, audio.music);
+  tone(mtof(chord[s % 3] + 12 + (s >= 8 ? 12 : 0)), t, STEP * 0.9, 'square', 0.06, [audio.music, audio.echo]);
+  if (s % 2 === 0) noiseHit(t, 0.03, 'highpass', 8000, s % 4 === 2 ? 0.08 : 0.04, audio.music);
+  if (bar % 8 >= 4 && s % 2 === 0) {
+    const m = LEAD[Math.floor((i % 32) / 2)];
+    if (m) tone(mtof(m), t, STEP * 1.8, 'square', 0.035, [audio.music, audio.echo]);
+  }
+}
+
+// ---------- effects ----------
+// An old dial-up modem: dial tone, three number beeps, then the screeching handshake.
+function sfxModem() {
+  if (!audio.ctx) return;
+  const t = audio.ctx.currentTime, o = audio.sfx;
+  tone(350, t, 0.32, 'sine', 0.07, o); tone(440, t, 0.32, 'sine', 0.07, o);
+  [[697, 1209], [770, 1336], [852, 1477]].forEach(([f1, f2], k) => { tone(f1, t + 0.4 + k * 0.1, 0.06, 'sine', 0.07, o); tone(f2, t + 0.4 + k * 0.1, 0.06, 'sine', 0.07, o); });
+  for (let k = 0; k < 18; k++) tone(k % 5 === 0 ? 980 : k % 2 ? 1200 : 2100, t + 0.75 + k * 0.03, 0.035, 'square', 0.025, o);
+  noiseHit(t + 0.95, 0.45, 'bandpass', 1800, 0.06, o, 3);
+  tone(1650, t + 1.25, 0.25, 'sine', 0.03, o, 1500);
+}
+function sfxHangup() { if (audio.ctx) tone(900, audio.ctx.currentTime, 0.14, 'square', 0.04, audio.sfx, 300); }
+function sfxThunk() {
+  if (!audio.ctx) return;
+  const t = audio.ctx.currentTime;
+  tone(110, t, 0.12, 'sine', 0.25, audio.sfx, 50); noiseHit(t, 0.06, 'lowpass', 900, 0.15, audio.sfx);
+}
+function sfxWhir() { if (audio.ctx) tone(180, audio.ctx.currentTime, 0.5, 'sawtooth', 0.03, audio.sfx, 420); }
+function sfxDoor() {
+  if (!audio.ctx) return;
+  const t = audio.ctx.currentTime;
+  for (let k = 0; k < 10; k++) noiseHit(t + k * 0.05, 0.04, 'bandpass', 600 + k * 40, 0.08, audio.sfx, 4);
+}
+function sfxAlarm() {
+  if (!audio.ctx) return;
+  const t = audio.ctx.currentTime;
+  for (let k = 0; k < 6; k++) tone(k % 2 ? 660 : 880, t + k * 0.16, 0.14, 'square', 0.05, audio.sfx);
+}
+
+// ---------- packets: a whoosh per packet, with Doppler and left/right pan ----------
+const voices = new Map();
+const VOICE_BASE = { chat: 900, hello: 700, syn: 1300, fin: 500, cmd: 1100, log: 1600 };
+function makeVoice(p) {
+  const a = audio.ctx;
+  const src = a.createBufferSource(); src.buffer = audio.noise; src.loop = true;
+  const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.5;
+  const osc = a.createOscillator(); osc.type = 'sine';
+  const og = a.createGain(); og.gain.value = 0.12;
+  const gain = a.createGain(); gain.gain.value = 0;
+  const pan = a.createStereoPanner ? a.createStereoPanner() : null;
+  src.connect(bp); bp.connect(gain); osc.connect(og); og.connect(gain);
+  if (pan) { gain.connect(pan); pan.connect(audio.sfx); } else gain.connect(audio.sfx);
+  src.start(0, Math.random() * 1.5); osc.start();
+  return { src, bp, osc, gain, pan, base: VOICE_BASE[p.kind] || 1000, last: null };
+}
+function updatePacketSounds(dt) {
+  if (!audio.ctx) return;
+  const now = audio.ctx.currentTime;
+  audio.musicFilter.frequency.setTargetAtTime(scene.kind === 'inside' ? 700 : 6000, now, 0.3);   // muffled inside
+  const live = new Set();
+  if (scene.kind === 'world') {
+    const ear = { x: robot.x, y: robot.y - 30 };
+    const near = packets.map(p => { const pos = packetPos(p); return { p, pos, d: Math.hypot(pos.x - ear.x, pos.y - ear.y) }; })
+      .filter(c => c.d < HEAR).sort((a, b) => a.d - b.d).slice(0, 6);
+    for (const c of near) {
+      live.add(c.p);
+      let v = voices.get(c.p);
+      if (!v) { v = makeVoice(c.p); voices.set(c.p, v); }
+      // Doppler: coming closer → higher pitch, moving away → lower pitch.
+      const vr = v.last === null || dt <= 0 ? 0 : (c.d - v.last) / dt;
+      v.last = c.d;
+      const dop = Math.max(0.5, Math.min(2, SOUND_C / (SOUND_C + vr)));
+      const moving = !(paused || c.p.blocked || simTime < c.p.holdUntil);
+      const vol = Math.pow(1 - c.d / HEAR, 2) * (moving ? 0.5 : 0.05) * (c.p.kind === 'log' ? 0.5 : 1);
+      v.bp.frequency.setTargetAtTime(v.base * dop, now, 0.04);
+      v.osc.frequency.setTargetAtTime(v.base * 0.75 * dop, now, 0.04);
+      v.gain.gain.setTargetAtTime(vol, now, 0.05);
+      if (v.pan) v.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, (c.pos.x - ear.x) / 500)), now, 0.05);
+    }
+  }
+  for (const [p, v] of voices) {
+    if (live.has(p)) continue;
+    v.gain.gain.setTargetAtTime(0, now, 0.05); v.src.stop(now + 0.3); v.osc.stop(now + 0.3);
+    voices.delete(p);
+  }
+}
+
+const btnSound = document.getElementById('btnSound');
+btnSound.onclick = () => {
+  audio.on = !audio.on;
+  btnSound.textContent = `Sound: ${audio.on ? 'on' : 'off'}`;
+  initAudio();
+  if (audio.master) audio.master.gain.setTargetAtTime(audio.on ? 0.7 : 0, audio.ctx.currentTime, 0.05);
+};
+addEventListener('pointerdown', initAudio);
+addEventListener('keydown', initAudio);
+
+// =====================================================================
+// LOOP, TOOLBAR, STATUS
+// =====================================================================
+let paused = false, speed = 1, stepBudget = 0;
+const btnPause = document.getElementById('btnPause'), btnStep = document.getElementById('btnStep');
+btnPause.onclick = () => {
+  paused = !paused;
+  btnPause.textContent = paused ? 'Run' : 'Pause';
+  btnPause.classList.toggle('on', paused);
+  btnStep.disabled = !paused;
+};
+btnStep.onclick = () => { stepBudget += 0.5; };
+document.getElementById('speed').onchange = e => { speed = parseFloat(e.target.value); };
+document.getElementById('btnLayout').onclick = resetLayout;
+
+// Maximize: the whole page goes full screen (Esc or the button again leaves it).
+const btnMax = document.getElementById('btnMax');
+function isFull() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function toggleFull() {
+  const el = document.documentElement;
+  if (isFull()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+}
+btnMax.onclick = toggleFull;
+document.getElementById('appTitle').addEventListener('dblclick', toggleFull);   // like a Windows 95 title bar
+function onFullChange() {
+  const full = isFull();
+  btnMax.textContent = full ? '❐' : '□';
+  btnMax.title = full ? 'Restore (leave full screen)' : 'Maximize (full screen)';
+  document.getElementById('app').classList.toggle('full', full);
+}
+document.addEventListener('fullscreenchange', onFullChange);
+document.addEventListener('webkitfullscreenchange', onFullChange);
+
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect();
+  view.dpr = window.devicePixelRatio || 1;
+  view.cw = Math.max(1, r.width); view.ch = Math.max(1, r.height);
+  cv.width = Math.round(view.cw * view.dpr); cv.height = Math.round(view.ch * view.dpr);
+  view.zoom = Math.min(view.cw / VIEW_W, view.ch / VIEW_H);
+}
+new ResizeObserver(() => { resize(); updateCamera(1); render(performance.now()); }).observe(cv.parentElement);
+resize();
+
+const st1 = document.getElementById('st1'), st2 = document.getElementById('st2');
+function updateStatus() {
+  const where = scene.kind === 'inside' ? `inside the LogWriter of Node ${scene.node}` : robot.ride ? 'riding the cable' : `on Node ${boardAt(robot.x, robot.y) || '?'}`;
+  const al = ['A', 'B'].filter(alert).map(n => ` · Node ${n} ON ALERT`).join('');
+  st1.textContent = `Simulation: ${paused ? 'paused' : 'running'} · ${speed}× · connection: ${tcp === 'up' ? 'open' : 'none'} · robot: ${where}${al}`;
+  const bl = ['A', 'B'].map(n => `${n} ${defense[n].blocks}`).join(', ');
+  st2.textContent = `Machines found: ${know.metInst.size}/12 · Questions: ${know.asked.size}/${TOTAL_TOPICS} · LogWriter stations seen: ${know.stations.size}/${STATIONS.length} · Blocks: ${bl}`;
+}
+
+spawn(scenario());
+let lastNow = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - lastNow) / 1000); lastNow = now;
+  let simDt = paused ? 0 : dt * speed;
+  if (paused && stepBudget > 0) { simDt = Math.min(stepBudget, dt * 2); stepBudget -= simDt; }
+  if (simDt > 0) {
+    simTime += simDt * 1000;
+    updatePackets(simDt);
+    for (const t of tasks.slice()) if (!t.done) runTask(t);
+    tasks = tasks.filter(t => !t.done);
+    updateFactory('A', simDt); updateFactory('B', simDt);
+    updateSwarm(simDt);
+  }
+  updateRobot(dt);
+  reveal();
+  updateCamera(dt);
+  updateDialog(dt);
+  updatePacketSounds(dt);
+  drawAvatars(now);
+  updateStatus();
+  render(now);
+  requestAnimationFrame(frame);
+}
+if (location.hash === '#inside') enterLog('A');   // shortcut: open the page as index.html#inside to start in the factory
+reveal(); snapCamera(); updateStatus(); render(performance.now());
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(frame));
+</script>
+</body>
+</html>
