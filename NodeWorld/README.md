@@ -28,7 +28,9 @@ tested again the next time it leaves a machine. Pass, and the robot wears the
 
 ## How to play
 
-Open `index.html` in a browser. No install or server is necessary.
+Play online: https://piaskowski1993-source.github.io/Chatap/NodeWorld/
+
+Or open `index.html` in a browser. No install or server is necessary.
 
 | Key | Action |
 | --- | --- |

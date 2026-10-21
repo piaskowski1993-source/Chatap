@@ -8,6 +8,8 @@ between two nodes.
 The repository also contains **[NodeWorld](NodeWorld/)**, a small browser game
 where a robot explores the inside of Chatap, machine by machine.
 
+▶ **Play NodeWorld in the browser:** https://piaskowski1993-source.github.io/Chatap/NodeWorld/
+
 ## Features
 
 - Peer-to-peer over TCP: one connection per conversation, several conversations at a time
@@ -22,7 +24,7 @@ where a robot explores the inside of Chatap, machine by machine.
 
 ## Build, run and test
 
-You need the .NET 8 SDK. The window uses [Avalonia](https://avaloniaui.net/),
+You need the .NET 10 SDK. The window uses [Avalonia](https://avaloniaui.net/),
 so it runs on Linux, Windows and macOS.
 
 ```sh
