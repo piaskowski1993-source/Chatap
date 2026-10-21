@@ -10,6 +10,17 @@ boards. Drive to a machine's terminal and talk to it to learn what it does.
 
 > Work in progress. Parts of this file are placeholders until the game is done.
 
+## Goal
+
+Explore the machines one by one. Each machine's terminal has a quiz about
+that machine: 10 multiple-choice questions, and you need all 10. You see
+the result only at the end, and only the numbers of the wrong questions.
+Pass the quiz to get the password of the next machine. At the next
+machine's terminal, choose "Input the password" to open its door.
+
+Earned passwords also appear on the password board in the top-left corner
+of Node A. Progress is not saved when you close the page.
+
 ## How to play
 
 Open `index.html` in a browser. No install or server is necessary.
@@ -19,7 +30,7 @@ Open `index.html` in a browser. No install or server is necessary.
 | Arrow keys / WASD, or click | Drive |
 | E / Enter / Space | Talk at a terminal, go through a door, ride the cable |
 | Space / Enter / click | Next line of dialogue |
-| 1, 2, 3 … | Choose a question in a dialogue |
+| 1, 2, 3 … | Choose a question in a dialogue, or an answer in a quiz |
 | Esc | Close the dialogue |
 
 ## Fiction
@@ -35,6 +46,8 @@ not Chatap behaviour:
   Chatap.
 - **Talking machines.** Terminals, faces and personalities are a way to explain
   the code. The facts they say are true to the code; the voices are not.
+- **Doors, quizzes and passwords.** Chatap machines have no doors. The
+  passwords are game passwords, not part of Chatap.
 - **Sound.** Music, modem noise and packet sounds are decoration.
 
 ## Development

@@ -92,6 +92,25 @@
   .opts .action { font-weight: 600; }
   .badge { background: var(--navy); color: #fff; font-size: 11px; padding: 0 4px; margin-left: 6px; }
   .locked { color: #505050; font-size: 13px; padding: 2px 2px; }
+  .pwrow { display: flex; gap: 6px; }
+  .pwrow input {
+    flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 3px 6px; background: #fff;
+    border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  }
+
+  /* quiz window */
+  .quiz {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(660px, calc(100% - 16px)); max-height: calc(100% - 16px); display: flex; flex-direction: column;
+  }
+  .quiz[hidden] { display: none; }
+  .qbody { padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .qnum { font-weight: 600; color: var(--navy); }
+  .qtext { padding: 10px 12px; font-size: 18px; line-height: 1.4; }
+  .qtext p { margin: 0 0 8px; }
+  .qtext p:last-child { margin: 0; }
+  .qtext .pw { font-weight: 600; color: var(--navy); font-size: 22px; }
+  .quiz .opts { max-height: none; }
   @media (max-width: 700px) {
     .hint { display: none; }
     .avatar { width: 68px; }
@@ -117,7 +136,7 @@
     </label>
     <button class="w95" id="btnLayout">Reset layout</button>
     <button class="w95" id="btnSound">Sound: on</button>
-    <span class="hint">Arrows / WASD: drive · E: terminal / door / cable · Space: next line · click: drive there · drag: move a machine</span>
+    <span class="hint">Arrows / WASD: drive · E: terminal / door / cable · Space: next line · 1–4: choose · click: drive there · drag: move a machine</span>
   </div>
   <div class="stage" id="stage">
     <canvas id="cv"></canvas>
@@ -131,6 +150,14 @@
           <div class="opts" id="dlgOpts"></div>
         </div>
         <div class="avatar" id="avPbox"><canvas id="avP" width="64" height="64"></canvas><div class="plate" id="dlgName"></div></div>
+      </div>
+    </div>
+    <div id="quiz" class="win quiz" hidden>
+      <div class="titlebar"><span id="quizTitle"></span><button class="w95 tbtn" id="quizClose" aria-label="Close">×</button></div>
+      <div class="qbody">
+        <div class="qnum" id="quizNum"></div>
+        <div class="qtext sunken" id="quizText"></div>
+        <div class="opts" id="quizOpts"></div>
       </div>
     </div>
   </div>
@@ -486,6 +513,47 @@ const ST_NOW = {
   lamp: () => ['Dark. All is well.'],
 };
 
+// =====================================================================
+// QUIZZES AND PASSWORDS — edit freely.
+// The robot explores the machines in ORDER. Each machine's quiz is about
+// that machine. 10 of 10 correct gives the password of the next machine.
+// In each question, the first answer is the correct one (the game shuffles
+// the questions and the answers).
+// =====================================================================
+const ORDER = ['window', 'node', 'handler', 'store', 'codec', 'log'];
+const PASSWORDS = { node: 'portzero', handler: 'hellofirst', store: 'appendonly', codec: 'fourbytes', log: 'onearm' };
+const MASTER_PASSWORD = 'adminadmin1';   // easter egg: opens every door, at any time
+const QUIZZES = {
+  log: [
+    { q: 'Who drops papers into the mail slots of the LogWriter?', a: [
+      'The Node and the connection handlers', 'Only the Window', 'The Codec', 'The other node, over the cable'] },
+    { q: 'Why do the Node and the handlers not wait until their line is written?', a: [
+      'Writing to a disk is slow, and a conversation must not stop because of the log',
+      'The line goes to the other node first', 'The log is written only when the program stops', 'They do wait, every time'] },
+    { q: 'When does the time clock stamp a paper?', a: [
+      'The moment the paper falls in, when the event happens', 'When the arm writes the paper to the file',
+      'When the program stops', 'At midnight, for all the papers of the day'] },
+    { q: 'Which kind of time is stamped on the papers?', a: [
+      'UTC', 'The local time of the computer', 'The time zone of the friend', 'Seconds since the conversation started'] },
+    { q: 'In which order does the arm take the papers from the belt?', a: [
+      'Oldest first: first in, first out', 'Newest first', 'Shortest first', 'Papers from the Node before papers from the handlers'] },
+    { q: 'Why is there only one arm?', a: [
+      'If two wrote to the same file at the same time, the lines could get mixed into each other',
+      'One arm uses less memory', 'The disk has only one door', 'Only one conversation can exist at a time'] },
+    { q: "A paper has a friend's ID on it. Where does the sorter send it?", a: [
+      "To a file named after the friend's ID", 'To node.txt', 'To the ConversationStore', 'Back to the start of the belt'] },
+    { q: "A line is logged before the friend's hello arrives. Where does it go?", a: [
+      'To node.txt, because before the hello nobody knows who the friend is',
+      "To the friend's file", 'Nowhere: it is thrown away', 'It waits on the belt until the hello comes'] },
+    { q: 'The program stops. What happens to the papers that are still on the belt?', a: [
+      'They are all still written. Then the writer stops', 'They are thrown away',
+      'They go to the other node', 'They stay on the belt until the next start'] },
+    { q: 'Writing fails, for example because the disk is full. What happens?', a: [
+      'The red lamp lights one time, the program is told, and the chat goes on',
+      'The chat stops until the disk has space', 'The LogWriter tries again forever', 'The papers stay on the belt until the disk has space'] },
+  ],
+};
+
 // The example conversation that plays in a loop.
 const CONVO = [
   ['A', 'hi'],
@@ -553,6 +621,8 @@ function termSpot(p) {
 // The LogWriter has a door in its bottom wall.
 function doorRect(n) { const p = P[`${n}.log`]; return { x: p.x + 0.75 * p.w - 40, y: p.y + p.h - 92, w: 80, h: 92 }; }
 
+// The password board in the top-left corner of Node A. Passwords appear as they are earned.
+function pwBoard() { return { x: BOARD.A.x + 110, y: BOARD.A.y + TITLE + 70, w: 780, h: 560 }; }
 // Walkable floor of a board, and the dock where the TCP cable plugs in.
 function floor(n) { const b = BOARD[n]; return { x: b.x + 14, y: b.y + TITLE + 8, w: BW - 28, h: BH - TITLE - 16 }; }
 function dock(n) { return { x: BOARD[n].x + BW / 2, y: BOARD[n].y + BH }; }
@@ -942,7 +1012,7 @@ function enterRoom(p) {
 }
 function tryEnter(p) {
   if (doorOpen[p.id]) enterRoom(p);
-  else think(`The door is closed. Maybe the ${p.name} can open it.`);
+  else think('The door is locked. The terminal wants a password.');
 }
 function exitRoom() {
   const back = scene.back;
@@ -995,6 +1065,8 @@ function blocked(x, y) {
     return false;
   }
   if (!boardAt(x, y)) return true;
+  const pb = pwBoard();
+  if (x > pb.x - 10 && x < pb.x + pb.w + 10 && y > pb.y - 10 && y < pb.y + pb.h + 10) return true;
   for (const p of parts) {
     if (x > p.x - 10 && x < p.x + p.w + 10 && y > p.y - 10 && y < p.y + p.h + 10) return true;
     const t = termRect(p);
@@ -1175,6 +1247,13 @@ function pushDirection(p) {
 }
 
 addEventListener('keydown', e => {
+  if (quiz.phase !== 'off') {
+    if (e.key === 'Escape') { closeQuiz(); e.preventDefault(); return; }
+    const num = parseInt(e.key, 10);
+    if (num >= 1) { const b = quizOpts.querySelectorAll('button')[num - 1]; if (b) { b.click(); e.preventDefault(); } }
+    return;
+  }
+  if (e.target.tagName === 'INPUT') return;   // typing a password
   if (dlg.part) {
     if (e.key === 'Escape') { closeDialog(); e.preventDefault(); return; }
     if (e.key === ' ' || e.key === 'Enter') { if (!dlg.optionsShown) { skipLine(); e.preventDefault(); } return; }
@@ -1268,7 +1347,7 @@ const dlgEl = document.getElementById('dlg'), dlgOpts = document.getElementById(
 const dlgLine = document.getElementById('dlgLine'), dlgMore = document.getElementById('dlgMore'), dlgSpeaker = document.getElementById('dlgSpeaker');
 const know = { met: new Set(), metInst: new Set(), asked: new Set(), seen: {}, stations: new Set() };
 // dlg.part = what the robot is connected to: a machine in the world, or a station inside a room.
-const dlg = { part: null, queue: [], cur: null, optionsShown: false, delay: 0 };
+const dlg = { part: null, queue: [], cur: null, optionsShown: false, delay: 0, after: null };
 const doorOpen = {}, doorAnim = {};   // by part id; doors start closed
 const TOTAL_TOPICS = [...Object.values(DIALOGUE), ...Object.values(ROOMS).flatMap(r => Object.values(r.dialogue))].reduce((s, d) => s + d.topics.length, 0);
 
@@ -1310,7 +1389,7 @@ function openDialog(p) {
 }
 function closeDialog() {
   if (dlg.part) sfxHangup();
-  dlg.part = null; dlg.queue = []; dlg.cur = null; dlg.optionsShown = false;
+  dlg.part = null; dlg.queue = []; dlg.cur = null; dlg.optionsShown = false; dlg.after = null;
   dlgEl.hidden = true;
 }
 function say(lines) { dlg.queue.push(...lines); }
@@ -1342,13 +1421,12 @@ function showOptions() {
     const isNew = !asked && !firstLook && !seen.has(t.id);
     make((asked ? '✓ ' : '') + t.ask, () => { know.asked.add(key); ask([['R', t.ask], ...linesOf(t, p)]); }, asked ? 'asked' : '', isNew ? 'new' : '');
   }
-  if (p.kind !== 'station' && ROOMS[p.type]) {
-    // A machine's door opens only when you ask for it.
-    const open = !doorOpen[p.id];
-    make(open ? 'Could you open your door?' : 'Please close your door.', () => {
-      ask([['R', open ? 'Could you open your door?' : 'Please close your door.'],
-           ['P', open ? 'Opening. Mind the step.' : 'Closing. The machines will keep working in the dark.']]);
-      doorOpen[p.id] = open; sfxDoor();
+  if (p.kind !== 'station') {
+    // A locked machine asks for its password. An unlocked one has a quiz about itself.
+    if (!progress.unlocked.has(p.type)) make('Input the password', () => askPassword(p), 'action');
+    else if (QUIZZES[p.type]) make(progress.passed.has(p.type) ? `✓ Take the quiz about the ${p.name} again` : `Take the quiz about the ${p.name} (10 questions)`, () => {
+      ask([['R', 'I want to take your quiz.'], ['P', 'Ten questions. You need all ten. I tell you the result at the end.']]);
+      dlg.after = () => startQuiz(p);
     }, 'action');
   }
   make('What are you doing right now?', () => ask([['R', 'What are you doing right now?'], ...nowLines(p).map(s => ['P', s])]));
@@ -1391,8 +1469,120 @@ function updateDialog(dt) {
       c.hold -= dt;
       if (c.hold <= 0) dlg.cur = null;
     }
-  } else if (!dlg.optionsShown) { dlgMore.style.visibility = 'hidden'; showOptions(); }
+  } else if (dlg.after) { const f = dlg.after; dlg.after = null; f(); }
+  else if (!dlg.optionsShown) { dlgMore.style.visibility = 'hidden'; showOptions(); }
 }
+
+// =====================================================================
+// QUIZZES AND PASSWORDS
+// =====================================================================
+const progress = { unlocked: new Set(['window']), passed: new Set(), earned: new Set() };
+const quizEl = document.getElementById('quiz'), quizOpts = document.getElementById('quizOpts');
+const quizNum = document.getElementById('quizNum'), quizText = document.getElementById('quizText');
+const quiz = { part: null, items: [], i: 0, wrong: [], phase: 'off' };   // phase: off, ask, result
+function nextOf(type) { const i = ORDER.indexOf(type); return i >= 0 && i < ORDER.length - 1 ? ORDER[i + 1] : null; }
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+// Both nodes are copies, so a password opens the door on both boards.
+function unlock(type) {
+  progress.unlocked.add(type);
+  for (const n of ['A', 'B']) doorOpen[`${n}.${type}`] = true;
+}
+
+function askPassword(p) {
+  dlgOpts.innerHTML = '';
+  const row = document.createElement('div'); row.className = 'pwrow';
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.placeholder = 'Password';
+  const ok = document.createElement('button'); ok.className = 'w95'; ok.textContent = 'OK';
+  const back = document.createElement('button'); back.className = 'w95'; back.textContent = 'Back';
+  ok.onclick = () => submitPassword(p, inp.value);
+  back.onclick = () => { dlgOpts.innerHTML = ''; dlg.optionsShown = false; };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); ok.click(); }
+    if (e.key === 'Escape') { e.preventDefault(); back.click(); }
+  });
+  row.append(inp, ok, back);
+  dlgOpts.append(row);
+  if (inp.focus) inp.focus();
+}
+function submitPassword(p, value) {
+  const v = value.trim().toLowerCase();
+  dlgOpts.innerHTML = ''; dlg.optionsShown = false;
+  if (v === MASTER_PASSWORD) {
+    unlock(p.type); sfxDoor();
+    say([['R', 'adminadmin1'], ['P', 'Oh. The admin password. Right away.'], ['P', 'Opening the door. Mind the step.']]);
+  } else if (v === PASSWORDS[p.type]) {
+    unlock(p.type); sfxDoor();
+    say([['R', 'I have the password.'], ['P', 'Password accepted.'], ['P', 'Opening the door. Mind the step.']]);
+  } else {
+    sfxWrong();
+    say([['R', 'I have the password.'], ['P', 'That is not my password. The door stays closed.']]);
+  }
+}
+
+function startQuiz(p) {
+  quiz.part = p; quiz.i = 0; quiz.wrong = []; quiz.phase = 'ask';
+  quiz.items = shuffle(QUIZZES[p.type]).map(q => ({ q: q.q, opts: shuffle(q.a.map((text, k) => ({ text, right: k === 0 }))) }));
+  victoryEnd = 0;   // a new quiz stops the victory music
+  document.getElementById('quizTitle').textContent = `Quiz — ${p.name}, Node ${p.node}`;
+  dlgEl.hidden = true; quizEl.hidden = false;
+  showQuestion();
+}
+function quizButton(label, fn) {
+  const b = document.createElement('button');
+  b.className = 'w95'; b.textContent = label; b.onclick = fn;
+  quizOpts.append(b);
+}
+function showQuestion() {
+  const it = quiz.items[quiz.i];
+  quizNum.textContent = `Question ${quiz.i + 1} of ${quiz.items.length}`;
+  quizText.textContent = it.q;
+  quizOpts.innerHTML = '';
+  it.opts.forEach((o, k) => quizButton(`${k + 1}. ${o.text}`, () => answer(o.right)));
+}
+function answer(right) {
+  if (!right) quiz.wrong.push(quiz.i + 1);
+  sfxClick();
+  quiz.i++;
+  if (quiz.i < quiz.items.length) showQuestion(); else showResult();
+}
+// Only the numbers of the wrong questions are shown, not the right answers.
+function listNumbers(a) { return a.length === 1 ? `${a[0]}` : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`; }
+function showResult() {
+  const p = quiz.part, pass = quiz.wrong.length === 0, next = nextOf(p.type);
+  quiz.phase = 'result';
+  quizNum.textContent = 'Result';
+  quizOpts.innerHTML = '';
+  const para = (html) => { const e = document.createElement('p'); e.innerHTML = html; return e; };
+  quizText.innerHTML = '';
+  if (pass) {
+    progress.passed.add(p.type);
+    if (next) {
+      progress.earned.add(next);
+      quizText.append(para('All ten answers are correct. You may enter.'),
+        para(`The password for the ${TYPES[next].name}:`), para(`<span class="pw">${PASSWORDS[next]}</span>`),
+        para('It is now also on the password board, in the top-left corner of Node A.'));
+    } else quizText.append(para('All ten answers are correct. That was the last machine.'));
+    startVictory();
+    quizButton('1. Close', closeQuiz);
+  } else {
+    const w = quiz.wrong;
+    quizText.append(para(w.length === 1 ? `Your answer was incorrect on question ${w[0]}.` : `Your answers were incorrect on questions ${listNumbers(w)}.`));
+    sfxWrong();
+    quizButton('1. Try again', () => startQuiz(p));
+    quizButton('2. Close', closeQuiz);
+  }
+}
+function closeQuiz() {
+  const p = quiz.part, finished = quiz.phase === 'result', pass = progress.passed.has(p.type) && finished && !quiz.wrong.length;
+  quiz.phase = 'off'; quizEl.hidden = true;
+  if (!dlg.part) return;
+  dlgEl.hidden = false; dlgOpts.innerHTML = ''; dlg.optionsShown = false;
+  const next = nextOf(p.type);
+  if (pass) say([['P', next ? `Well done. Take the password to the ${TYPES[next].name} terminal.` : 'Well done. You know every machine now.']]);
+  else say([['P', 'Come back when you are ready. My stations know the answers.']]);
+}
+document.getElementById('quizClose').onclick = closeQuiz;
 
 // ---------- the two faces in the dialogue box ----------
 const avR = document.getElementById('avR').getContext('2d'), avP = document.getElementById('avP').getContext('2d');
@@ -1597,6 +1787,20 @@ function drawBoard(n) {
   txt('TCP dock', d.x, d.y - 50, 28, '#000', true, 'center');
 }
 
+function drawPasswordBoard() {
+  const b = pwBoard();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(b.x + 14, b.y + 14, b.w, b.h);
+  bevel(b.x, b.y, b.w, b.h, true, C.face, 5);
+  titleBar(b.x + 8, b.y + 8, b.w - 16, 60);
+  txt('Passwords', b.x + 24, b.y + 52, 38, '#fff', true);
+  bevel(b.x + 20, b.y + 84, b.w - 40, b.h - 104, false, '#fff', 3);
+  ORDER.forEach((type, i) => {
+    const y = b.y + 140 + i * 72;
+    txt(TYPES[type].name, b.x + 44, y, 32, '#000', true);
+    const pw = type === ORDER[0] ? 'open' : progress.earned.has(type) ? PASSWORDS[type] : '• • • • • •';
+    txt(pw, b.x + b.w - 44, y, 32, progress.earned.has(type) ? C.navy : C.lo, progress.earned.has(type), 'right');
+  });
+}
 function strokePts(pts, width, color) {
   ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y); ctx.stroke();
@@ -1979,6 +2183,7 @@ function drawMinimap() {
       const t = termRect(p); R(t.x, t.y, t.w, t.h, '#20c040');
     }
     for (const p of doorParts()) { const d = doorRect(p); R(d.x, d.y, d.w, d.h, '#ff9000'); }
+    { const pb = pwBoard(); R(pb.x, pb.y, pb.w, pb.h, '#fff'); }
   }
   ctx.drawImage(currentFog().c, x0, y0, mw, mh);   // unexplored = black
   const hw = view.cw / 2 / view.zoom, hh = view.ch / 2 / view.zoom;
@@ -2005,6 +2210,7 @@ function render(now) {
   else {
     drawVoid();
     drawBoard('A'); drawBoard('B');
+    drawPasswordBoard();
     drawWires();
     drawCable();
     for (const p of parts) drawPart(p);
@@ -2045,7 +2251,7 @@ function initAudio() {
   const buf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   audio.noise = buf;
-  audio.next = a.currentTime + 0.1; audio.step = 0;
+  audio.next = a.currentTime + 0.1; audio.step = 0; audio.track = null;
   setInterval(musicTick, 25);
 }
 function tone(freq, t, dur, type, vol, dests, slideTo) {
@@ -2063,12 +2269,34 @@ function noiseHit(t, dur, ftype, freq, vol, dest, q = 1) {
   src.connect(f); f.connect(g); g.connect(dest); src.start(t, Math.random()); src.stop(t + dur + 0.05);
 }
 
-// ---------- the soundtrack: a slow chiptune loop ----------
-function musicTick() {
-  const a = audio.ctx;
-  while (audio.next < a.currentTime + 0.12) { playStep(audio.step, audio.next); audio.next += STEP; audio.step++; }
+// ---------- the soundtrack: four chiptune tracks ----------
+// quiz: while a quiz is open · victory: one 3-minute pass after a passed quiz
+// room: inside a machine · ambient: everywhere else. Earlier in the list wins.
+const TRACKS = {
+  ambient: { bpm: BPM, play: playAmbient },
+  room:    { bpm: 132, play: playRoom },
+  quiz:    { bpm: 100, play: playQuiz },
+  victory: { bpm: 140, play: playVictory },
+};
+const VICTORY_SECONDS = 180;
+let victoryEnd = 0;   // audio time when the victory track stops
+function startVictory() { if (audio.ctx) { victoryEnd = audio.ctx.currentTime + VICTORY_SECONDS; audio.track = null; } }
+function wantedTrack() {
+  if (quiz.phase === 'ask') return 'quiz';
+  if (audio.ctx && audio.ctx.currentTime < victoryEnd) return 'victory';
+  return scene.kind === 'inside' ? 'room' : 'ambient';
 }
-function playStep(i, t) {
+function musicTick() {
+  const a = audio.ctx, want = wantedTrack();
+  if (want !== audio.track) {   // switch: start the new track from its beginning
+    audio.track = want; audio.step = 0;
+    audio.next = Math.max(audio.next, a.currentTime + 0.05);
+    audio.echo.delayTime.setValueAtTime(60 / TRACKS[want].bpm / 4 * 3, audio.next);
+  }
+  const tr = TRACKS[audio.track], st = 60 / tr.bpm / 4;   // one 16th note
+  while (audio.next < a.currentTime + 0.12) { tr.play(audio.step, audio.next, st); audio.next += st; audio.step++; }
+}
+function playAmbient(i, t) {
   const s = i % 16, bar = Math.floor(i / 16), chord = CHORDS[bar % 4];
   if (s === 0 || s === 6 || s === 8 || s === 14) tone(mtof(chord[0] - 12), t, STEP * 1.8, 'triangle', 0.5, audio.music);
   tone(mtof(chord[s % 3] + 12 + (s >= 8 ? 12 : 0)), t, STEP * 0.9, 'square', 0.06, [audio.music, audio.echo]);
@@ -2076,6 +2304,80 @@ function playStep(i, t) {
   if (bar % 8 >= 4 && s % 2 === 0) {
     const m = LEAD[Math.floor((i % 32) / 2)];
     if (m) tone(mtof(m), t, STEP * 1.8, 'square', 0.035, [audio.music, audio.echo]);
+  }
+}
+function kick(t, vol) { tone(150, t, 0.12, 'sine', vol, audio.music, 45); }
+
+// Room: a whimsical factory tune. Oom-pah bass, plinky arpeggio, clanks and steam.
+const ROOM_CHORDS = [[53, 57, 60], [58, 62, 65], [60, 64, 67], [53, 57, 60], [50, 53, 57], [55, 58, 62], [60, 64, 67], [53, 57, 60]];   // F Bb C F Dm Gm C F
+const ROOM_PLINK = [[0, null, null, 1, null, 2, null, 1, 2, null, 1, null, 0, null, null, null],
+                    [2, null, 1, null, 0, null, 1, 2, 3, null, null, 2, null, 1, null, null]];
+function playRoom(i, t, st) {
+  const s = i % 16, bar = Math.floor(i / 16), ch = ROOM_CHORDS[bar % 8];
+  if (s === 0 || s === 8) tone(mtof(ch[0] - 12), t, st * 1.2, 'triangle', 0.5, audio.music);          // oom
+  if (s === 4 || s === 12) for (const m of ch) tone(mtof(m), t, st * 0.8, 'square', 0.025, audio.music);   // pah
+  const k = ROOM_PLINK[bar % 2][s];
+  if (k !== null) tone(mtof((k === 3 ? ch[0] + 12 : ch[k]) + 12), t, st * 0.7, 'square', 0.045, [audio.music, audio.echo]);
+  if (s === 4 || s === 12) noiseHit(t, 0.07, 'bandpass', 3200, 0.12, audio.music, 9);                  // clank
+  if (s % 2 === 1) noiseHit(t, 0.02, 'highpass', 9000, 0.03, audio.music);                               // tick
+  if (s === 6 || s === 14) tone(bar % 2 ? 1500 : 1200, t, 0.04, 'triangle', 0.08, audio.music);          // wood block
+  if (bar % 4 === 3 && s === 12) noiseHit(t, 0.5, 'lowpass', 1400, 0.1, audio.music);                   // steam puff
+}
+
+// Quiz: thinking music. Tick-tock clock, slow minor chords, soft plucks.
+const QUIZ_CHORDS = [[50, 53, 57], [46, 50, 53], [43, 46, 50], [45, 49, 52]];   // Dm Bb Gm A
+function playQuiz(i, t, st) {
+  const s = i % 16, bar = Math.floor(i / 16), ch = QUIZ_CHORDS[bar % 4];
+  if (s % 4 === 0) tone(s % 8 === 0 ? 2000 : 1500, t, 0.03, 'sine', 0.12, audio.music);   // tick, tock
+  if (s === 0) for (const m of ch) tone(mtof(m + 12), t, st * 15, 'triangle', 0.05, audio.music);
+  if (s === 0 || s === 10) tone(mtof(ch[0] - 12), t, st * 3, 'triangle', 0.4, audio.music);
+  if (s === 6 || s === 14) tone(mtof(ch[(bar + s) % 3] + 24), t, st * 1.5, 'square', 0.025, [audio.music, audio.echo]);
+}
+
+// Victory: one 3-minute pass. Fanfare, then six rounds of verse + chorus that climb in key, then a big ending.
+const VERSE = { chords: [0, 7, 9, 5, 0, 7, 9, 5], lead: [
+  [0, null, 4, 7, 12, null, 7, 4], [2, null, 7, 11, 14, null, 11, 7], [9, null, 12, 16, 12, null, 9, 7], [5, null, 9, 12, 9, 7, 5, 4],
+  [0, 4, 7, 12, 16, null, 14, 12], [11, null, 14, null, 7, null, 11, 12], [9, 12, 16, null, 19, null, 16, 12], [17, 16, 14, 12, 11, null, 7, null]] };
+const CHORUS = { chords: [5, 7, 4, 9, 5, 7, 0, 0], lead: [
+  [17, null, 17, 16, 17, null, 21, null], [19, null, 19, 17, 19, null, 23, null], [16, null, 19, 16, 12, null, 16, null], [21, null, 19, 16, 12, null, 9, null],
+  [17, 16, 17, 19, 21, null, 17, null], [19, 17, 19, 21, 23, null, 19, null], [24, null, null, 19, 16, null, 12, null], [12, null, null, null, null, null, null, null]] };
+const KEYS = [0, 0, 2, 2, 5, 5];   // transpose of each round
+// chords: steps above the key root. 0, 5, 7 = major chords (C, F, G); 2, 4, 9 = minor chords (Dm, Em, Am).
+function triad(root, minor) { return [root, root + (minor ? 3 : 4), root + 7]; }
+function playVictory(i, t, st) {
+  const s = i % 16, bar = Math.floor(i / 16);
+  if (bar < 4) {   // fanfare: da-da-da-daaa on C, F, G, C
+    const root = [48, 53, 55, 60][bar], top = [7, 9, 11, 12][bar] + 60;
+    if (s === 0 || s === 3 || s === 6) tone(mtof(top), t, st * 1.5, 'square', 0.05, [audio.music, audio.echo]);
+    if (s === 8) { tone(mtof(top + 5), t, st * 7, 'square', 0.05, [audio.music, audio.echo]); for (const m of triad(root, false)) tone(mtof(m), t, st * 7, 'triangle', 0.15, audio.music); }
+    if (s === 0 || s === 8) kick(t, 0.5);
+    if (bar === 3 && s >= 12) noiseHit(t, 0.06, 'highpass', 2000, 0.12, audio.music);   // drum roll into the song
+    return;
+  }
+  const r = Math.floor((bar - 4) / 16);
+  if (r >= KEYS.length) {   // ending: three hits, then one long chord, then silence
+    const e = bar - 4 - KEYS.length * 16, key = KEYS[KEYS.length - 1];
+    if (e === 0 && (s === 0 || s === 4 || s === 8)) { kick(t, 0.6); for (const m of triad(60 + key, false)) tone(mtof(m), t, st * 2, 'square', 0.04, audio.music); }
+    if (e === 1 && s === 0) {
+      kick(t, 0.6); noiseHit(t, 1.5, 'highpass', 3000, 0.15, audio.music);
+      for (const m of [...triad(48 + key, false), ...triad(60 + key, false), 72 + key]) tone(mtof(m), t, st * 40, m < 60 ? 'triangle' : 'square', m < 60 ? 0.3 : 0.03, [audio.music, audio.echo]);
+    }
+    return;
+  }
+  const part = (bar - 4) % 16 < 8 ? VERSE : CHORUS, b = (bar - 4) % 8, key = KEYS[r];
+  const root = 48 + part.chords[b] + key, ch = triad(root, [2, 4, 9].includes(part.chords[b]));
+  if (s % 2 === 0) tone(mtof((s % 4 === 0 ? ch[0] : ch[0] + 12) - 12), t, st * 1.6, 'triangle', 0.45, audio.music);   // pumping bass
+  tone(mtof(ch[s % 3] + 24), t, st * 0.8, 'square', 0.02, audio.music);                                              // arpeggio
+  if (s === 0 || s === 8 || (part === CHORUS && (s === 4 || s === 12))) kick(t, 0.5);
+  if (s === 4 || s === 12) noiseHit(t, 0.12, 'bandpass', 1800, 0.18, audio.music, 0.8);                            // snare
+  if (s % 2 === 0) noiseHit(t, 0.025, 'highpass', 8000, 0.05, audio.music);                                        // hat
+  if (s % 2 === 0) {
+    const m = part.lead[b][s / 2];
+    if (m !== null) {
+      let note = 72 + m + key; while (note > 96) note -= 12;
+      tone(mtof(note), t, st * 1.8, 'square', 0.04, [audio.music, audio.echo]);
+      if (r >= 2) tone(mtof(note - 12), t, st * 1.8, 'triangle', 0.08, audio.music);   // later rounds: a second, lower voice
+    }
   }
 }
 
@@ -2090,6 +2392,9 @@ function sfxModem() {
   noiseHit(t + 0.95, 0.45, 'bandpass', 1800, 0.06, o, 3);
   tone(1650, t + 1.25, 0.25, 'sine', 0.03, o, 1500);
 }
+// A wrong answer or a wrong password: three falling notes.
+function sfxWrong() { if (!audio.ctx) return; const t = audio.ctx.currentTime; [440, 392, 311].forEach((f, k) => tone(f, t + k * 0.16, k === 2 ? 0.45 : 0.14, 'square', 0.05, audio.sfx)); }
+function sfxClick() { if (audio.ctx) tone(1400, audio.ctx.currentTime, 0.03, 'square', 0.03, audio.sfx); }
 function sfxHangup() { if (audio.ctx) tone(900, audio.ctx.currentTime, 0.14, 'square', 0.04, audio.sfx, 300); }
 function sfxThunk() {
   if (!audio.ctx) return;
@@ -2127,7 +2432,6 @@ function makeVoice(p) {
 function updatePacketSounds(dt) {
   if (!audio.ctx) return;
   const now = audio.ctx.currentTime;
-  audio.musicFilter.frequency.setTargetAtTime(scene.kind === 'inside' ? 700 : 6000, now, 0.3);   // muffled inside
   const live = new Set();
   if (scene.kind === 'world') {
     const ear = { x: robot.x, y: robot.y - 30 };
@@ -2216,7 +2520,7 @@ function updateStatus() {
   const al = ['A', 'B'].filter(alert).map(n => ` · Node ${n} ON ALERT`).join('');
   st1.textContent = `Simulation: ${paused ? 'paused' : 'running'} · ${speed}× · connection: ${tcp === 'up' ? 'open' : 'none'} · robot: ${where}${al}`;
   const bl = ['A', 'B'].map(n => `${n} ${defense[n].blocks}`).join(', ');
-  st2.textContent = `Machines found: ${know.metInst.size}/12 · Questions: ${know.asked.size}/${TOTAL_TOPICS} · Stations seen: ${know.stations.size}/${ALL_STATIONS} · Blocks: ${bl}`;
+  st2.textContent = `Machines found: ${know.metInst.size}/12 · Questions: ${know.asked.size}/${TOTAL_TOPICS} · Stations seen: ${know.stations.size}/${ALL_STATIONS} · Quizzes passed: ${progress.passed.size}/${ORDER.length} · Blocks: ${bl}`;
 }
 
 spawn(scenario());
